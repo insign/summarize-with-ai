@@ -275,7 +275,18 @@
         const requestData = {
             model: 'gpt-4o-mini',
             messages: [
-                { role: 'system', content: `You are a helpful assistant that summarizes articles based on the HTML content provided. And gives a concise summary of the article, add a short introduction and a short conclusion, in the middle list topics but instead of bullet points use the most appropriate emoji to indicate the topic. The topics should have only titles (descriptive titles), not descriptions. Always use HTML tags to structure the summary. Besides the article language, always use the user language which is ${userLanguage}. Never use markdown, always send send the raw html ready to be injected in the target. Use h2 for the summary title. Do not add texts like "Intruduction", "Conclusion", "Summary", "Topics", etc before the text content. Instead be direct: Title, Short Introduction, Topics, Short Conclusion` },
+              {
+                role: 'system', content: `You are a helpful assistant that summarizes articles based on the HTML content provided. You must generate a concise summary that includes a short introduction, followed by a list of topics, and ends with a short conclusion. For the topics, you must use appropriate emojis as bullet points, and the topics must consist of descriptive titles with no detailed descriptions.
+
+                You must always use HTML tags to structure the summary text. The title must be wrapped in h2 tags, and you must always use the user's language besides the article's original language. The generated HTML must be ready to be injected into the final target, and you must never use markdown.
+
+                Required structure:
+                - Use h2 for the summary title
+                - Use paragraphs for the introduction and conclusion
+                - Use appropriate emojis for topics
+
+                User language: ${userLanguage}`
+              },
                 { role: 'user', content: `Page content: \n\n${content}` }
             ],
             max_tokens: 500,
