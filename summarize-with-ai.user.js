@@ -2,7 +2,7 @@
 // @name         Summarize with AI
 // @namespace    https://github.com/insign/summarize-with-ai
 // @version      2024.10.10.1221
-// @description  Adds a button or key shortcut to summarize articles, news, and similar content using the OpenAI API (gpt-4 model). The summary is displayed in an overlay with improved styling and loading animation.
+// @description  Adds a button or key shortcut to summarize articles, news, and similar content using the OpenAI API (gpt-4o-mini model). The summary is displayed in an overlay with improved styling and loading animation.
 // @author       Hélio
 // @license      WTFPL
 // @match        *://*/*
@@ -281,7 +281,7 @@
         // Prepare the API request
         const apiUrl = 'https://api.openai.com/v1/chat/completions';
         const requestData = {
-            model: 'gpt-4',
+            model: 'gpt-4o-mini',
             messages: [
                 {
                     role: 'system', content: `You are a helpful assistant that summarizes articles based on the HTML content provided. You must generate a concise summary that includes a short introduction, followed by a list of topics, and ends with a short conclusion. For the topics, you must use appropriate emojis as bullet points, and the topics must consist of descriptive titles with no detailed descriptions.
