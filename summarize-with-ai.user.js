@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Summarize with AI
 // @namespace    https://github.com/insign/summarize-with-ai
-// @version      2024.10.10.1212
-// @description  Adds a button or key shortcut to summarize articles, news, and similar content using the OpenAI API (gpt-4o-mini model). The summary is displayed in an overlay with streaming support and improved styling.
+// @version      2024.10.10.1221
+// @description  Adds a button or key shortcut to summarize articles, news, and similar content using the OpenAI API (gpt-4 model). The summary is displayed in an overlay with improved styling and loading animation.
 // @author       Hélio
 // @license      WTFPL
 // @match        *://*/*
@@ -106,6 +106,7 @@
                 font-size: 1.1em;
                 max-width: 90%;
                 max-height: 90%;
+                border-radius: 8px;
             }
             #summarize-overlay h2 {
                 margin-top: 0;
@@ -130,6 +131,20 @@
                 padding: 10px 20px;
                 border-radius: 5px;
                 z-index: 10002;
+            }
+            .glow {
+                font-size: 1.2em;
+                color: #fff;
+                text-align: center;
+                animation: glow 1.5s ease-in-out infinite alternate;
+            }
+            @keyframes glow {
+                from {
+                    text-shadow: 0 0 10px #00e6e6, 0 0 20px #00e6e6, 0 0 30px #00e6e6, 0 0 40px #00e6e6, 0 0 50px #00e6e6, 0 0 60px #00e6e6;
+                }
+                to {
+                    text-shadow: 0 0 20px #00ffff, 0 0 30px #00ffff, 0 0 40px #00ffff, 0 0 50px #00ffff, 0 0 60px #00ffff, 0 0 70px #00ffff;
+                }
             }
             @media (max-width: 768px) {
                 #summarize-overlay {
@@ -157,7 +172,7 @@
         const pageContent = document.documentElement.outerHTML;
 
         // Show summary overlay with loading message
-        showSummaryOverlay('<p>Generating summary...</p>');
+        showSummaryOverlay('<p class="glow">Generating summary...</p>');
 
         // Send content to OpenAI API
         summarizeContent(apiKey, pageContent);
@@ -179,7 +194,7 @@
         const pageContent = document.documentElement.outerHTML;
 
         // Show summary overlay with loading message
-        showSummaryOverlay('<p>Generating summary...</p>');
+        showSummaryOverlay('<p class="glow">Generating summary...</p>');
 
         // Send content to OpenAI API
         summarizeContent(apiKey, pageContent);
@@ -221,27 +236,28 @@
         document.body.appendChild(overlay);
 
         // Add event listener for close button
-        document.getElementById('summarize-close').addEventListener('click', () => {
-            overlay.remove();
-            document.removeEventListener('keydown', onEscapePress);
-        });
+        document.getElementById('summarize-close').addEventListener('click', closeOverlay);
 
         // Add event listener for 'Escape' key to close the overlay
         document.addEventListener('keydown', onEscapePress);
 
         function onEscapePress(e) {
             if (e.key === 'Escape') {
-                overlay.remove();
-                document.removeEventListener('keydown', onEscapePress);
+                closeOverlay();
             }
+        }
+
+        function closeOverlay() {
+            overlay.remove();
+            document.removeEventListener('keydown', onEscapePress);
         }
     }
 
-    // Function to update the summary content incrementally
+    // Function to update the summary content
     function updateSummaryOverlay(content) {
         const contentDiv = document.getElementById('summarize-content');
         if (contentDiv) {
-            contentDiv.innerHTML += content.replaceAll('\n', '<br>');
+            contentDiv.innerHTML = content;
         }
     }
 
@@ -258,17 +274,14 @@
         }, 4000);
     }
 
-    // Variable to hold the XMLHttpRequest for cancellation (if needed)
-    let xhrRequest = null;
-
-    // Function to summarize the content using OpenAI API with streaming
+    // Function to summarize the content using OpenAI API (non-streaming)
     function summarizeContent(apiKey, content) {
         const userLanguage = navigator.language || 'en';
 
         // Prepare the API request
         const apiUrl = 'https://api.openai.com/v1/chat/completions';
         const requestData = {
-            model: 'gpt-4o-mini',
+            model: 'gpt-4',
             messages: [
                 {
                     role: 'system', content: `You are a helpful assistant that summarizes articles based on the HTML content provided. You must generate a concise summary that includes a short introduction, followed by a list of topics, and ends with a short conclusion. For the topics, you must use appropriate emojis as bullet points, and the topics must consist of descriptive titles with no detailed descriptions.
@@ -287,15 +300,11 @@
             max_tokens: 500,
             temperature: 0.5,
             n: 1,
-            stream: true
+            stream: false
         };
 
-        // Initialize variables for processing the streaming response
-        let buffer = '';
-        let lastPosition = 0;
-
-        // Send the request using GM_xmlhttpRequest with streaming support
-        xhrRequest = GM_xmlhttpRequest({
+        // Send the request using GM_xmlhttpRequest
+        GM_xmlhttpRequest({
             method: 'POST',
             url: apiUrl,
             headers: {
@@ -303,61 +312,25 @@
                 'Authorization': `Bearer ${apiKey}`
             },
             data: JSON.stringify(requestData),
-            responseType: 'text',
-            onprogress: function(response) {
-                const newText = response.responseText.substring(lastPosition);
-                lastPosition = response.responseText.length;
-
-                buffer += newText;
-                processStreamData();
-            },
             onload: function(response) {
-                // Streaming complete
+                if (response.status === 200) {
+                    const resData = JSON.parse(response.responseText);
+                    const summary = resData.choices[0].message.content;
+                    updateSummaryOverlay(summary.replaceAll('\n', '<br>'));
+                } else {
+                    showErrorNotification('Error: Failed to retrieve summary.');
+                    updateSummaryOverlay('<p>Error: Failed to retrieve summary.</p>');
+                }
             },
             onerror: function() {
                 showErrorNotification('Error: Network error.');
+                updateSummaryOverlay('<p>Error: Network error.</p>');
             },
             onabort: function() {
                 showErrorNotification('Request canceled.');
+                updateSummaryOverlay('<p>Request canceled.</p>');
             }
         });
-
-        // Function to process the streaming data
-        function processStreamData() {
-            let lines = buffer.split('\n');
-            let incompleteLine = '';
-
-            // If the last line is not empty, it's an incomplete line
-            if (lines[lines.length - 1] && lines[lines.length - 1].trim() !== '') {
-                incompleteLine = lines.pop();
-            }
-
-            for (let line of lines) {
-                line = line.trim();
-                if (line.startsWith('data: ')) {
-                    let jsonStr = line.replace('data: ', '').trim();
-
-                    if (jsonStr === '[DONE]') {
-                        // Streaming complete
-                        return;
-                    }
-
-                    try {
-                        let json = JSON.parse(jsonStr);
-                        let content = json.choices[0].delta.content;
-                        if (content) {
-                            // Update the summary overlay with new content
-                            updateSummaryOverlay(content);
-                        }
-                    } catch (e) {
-                        console.error('Failed to parse JSON chunk:', jsonStr);
-                    }
-                }
-            }
-
-            // Keep the incomplete line in buffer
-            buffer = incompleteLine;
-        }
     }
 
 })();
