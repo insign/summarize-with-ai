@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Summarize with AI
 // @namespace    https://github.com/insign/summarize-with-ai
-// @version      2024.09.19.10.25
+// @version      2024.09.19.10.29
 // @description  Adds a little button to summarize articles, news, and similar content using the OpenAI API (gpt-4o-mini model). The button only appears on pages detected as articles or news. The summary is displayed in a responsive overlay with a loading effect and error handling.
 // @author       Hélio <open@helio.me>
 // @license      WTFPL
