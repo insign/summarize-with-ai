@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Summarize with AI
 // @namespace    https://github.com/insign/summarize-with-ai
-// @version      2024.09.19.11.09
+// @version      2024.09.19.11.18
 // @description  Adds a little button to summarize articles, news, and similar content using the OpenAI API (gpt-4o-mini model). The button only appears on pages detected as articles or news. The summary is displayed in a responsive overlay with a loading effect and error handling.
 // @author       Hélio <open@helio.me>
 // @license      WTFPL
@@ -103,7 +103,7 @@
                 top: 10px;
                 right: 10px;
                 cursor: pointer;
-                font-size: 18px;
+                font-size: 22px;
             }
             #summarize-loading {
                 position: fixed;
@@ -240,8 +240,7 @@
         overlay.id = 'summarize-overlay';
         overlay.innerHTML = `
             <div id="summarize-close">&times;</div>
-            <h2>Summary</h2>
-            <div>${summaryText.replace(/\n/g, '<br>')}</div>
+            <div>${summaryText}</div>
         `;
         document.body.appendChild(overlay);
 
@@ -276,7 +275,7 @@
         const requestData = {
             model: 'gpt-4o-mini',
             messages: [
-                { role: 'system', content: `You are a helpful assistant that summarizes articles based on the HTML content provided. And gives a concise summary of the article, add a short introduction and a short conclusion, in the middle list topics but instead of bullet points use the most appropriate emoji to indicate the topic. Always use HTML tags to structure the summary. Besides the article language, always use the user language which is ${userLanguage}. Never use markdown, always send send the raw html ready to be injected in the target.` },
+                { role: 'system', content: `You are a helpful assistant that summarizes articles based on the HTML content provided. And gives a concise summary of the article, add a short introduction and a short conclusion, in the middle list topics but instead of bullet points use the most appropriate emoji to indicate the topic. Always use HTML tags to structure the summary. Besides the article language, always use the user language which is ${userLanguage}. Never use markdown, always send send the raw html ready to be injected in the target. Use h2 for the summary title. Do not add texts like "Intruduction", "Conclusion", "Summary", "Topics", etc before the text content. Instead be direct: Title, Short Introduction, Topics, Short Conclusion` },
                 { role: 'user', content: `Page content: \n\n${content}` }
             ],
             max_tokens: 500,
