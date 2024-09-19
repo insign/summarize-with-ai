@@ -1,25 +1,31 @@
 // ==UserScript==
 // @name         Summarize with AI
 // @namespace    https://github.com/insign/summarize-with-ai
-// @version      2024.09.19.1200
-// @description  Adds a little button to summarize articles, news, and similar content using the OpenAI API (gpt-4o-mini model). The button only appears on pages detected as articles or news. The summary is displayed in a responsive overlay with a loading effect and error handling.
-// @author       Hélio <open@helio.me>
+// @version      2024.10.10.1212
+// @description  Adds a button or key shortcut to summarize articles, news, and similar content using the OpenAI API (gpt-4o-mini model). The summary is displayed in an overlay with streaming support and improved styling.
+// @author       Hélio
 // @license      WTFPL
 // @match        *://*/*
 // @grant        GM_addStyle
 // @grant        GM_xmlhttpRequest
+// @grant        GM_setValue
+// @grant        GM_getValue
 // @connect      api.openai.com
 // ==/UserScript==
 
 (function() {
     'use strict';
 
-    // Check if the current page is an article or news content
-    if (!isArticlePage()) {
-        return;
-    }
+    // Add keydown event listener for 'S' key to trigger summarization
+    document.addEventListener('keydown', function(e) {
+        const activeElement = document.activeElement;
+        const isInput = activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.isContentEditable);
+        if (!isInput && (e.key === 's' || e.key === 'S')) {
+            onSummarizeShortcut();
+        }
+    });
 
-    // Add the "S" button to the page
+    // Add summarize button if the page is an article
     addSummarizeButton();
 
     /*** Function Definitions ***/
@@ -55,6 +61,9 @@
 
     // Function to add the summarize button
     function addSummarizeButton() {
+        if (!isArticlePage()) {
+            return; // Do not add the button if not an article
+        }
         // Create the button element
         const button = document.createElement('div');
         button.id = 'summarize-button';
@@ -94,9 +103,13 @@
                 padding: 20px;
                 box-shadow: 0 0 10px rgba(0,0,0,0.5);
                 overflow: auto;
+                font-size: 1.1em;
+                max-width: 90%;
+                max-height: 90%;
             }
             #summarize-overlay h2 {
                 margin-top: 0;
+                font-size: 1.5em;
             }
             #summarize-close {
                 position: absolute;
@@ -105,36 +118,8 @@
                 cursor: pointer;
                 font-size: 22px;
             }
-            #summarize-loading {
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: linear-gradient(45deg, #007bff, #00ff6a, #007bff);
-                background-size: 600% 600%;
-                animation: GradientAnimation 3s ease infinite;
-                z-index: 10000;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                flex-direction: column;
-                color: white;
-                font-size: 24px;
-            }
-            @keyframes GradientAnimation {
-                0%{background-position:0% 50%}
-                50%{background-position:100% 50%}
-                100%{background-position:0% 50%}
-            }
-            #summarize-cancel {
+            #summarize-content {
                 margin-top: 20px;
-                padding: 10px 20px;
-                background-color: rgba(0,0,0,0.3);
-                border: none;
-                color: white;
-                font-size: 18px;
-                cursor: pointer;
             }
             #summarize-error {
                 position: fixed;
@@ -171,8 +156,30 @@
         // Capture page source
         const pageContent = document.documentElement.outerHTML;
 
-        // Show loading overlay
-        showLoadingOverlay();
+        // Show summary overlay with loading message
+        showSummaryOverlay('<p>Generating summary...</p>');
+
+        // Send content to OpenAI API
+        summarizeContent(apiKey, pageContent);
+    }
+
+    // Handler for the "S" key shortcut
+    function onSummarizeShortcut() {
+        const apiKey = getApiKey();
+        if (!apiKey) {
+            return;
+        }
+
+        if (!isArticlePage()) {
+            // Show a quick warning
+            alert('This page may not be an article. Proceeding to summarize anyway.');
+        }
+
+        // Capture page source
+        const pageContent = document.documentElement.outerHTML;
+
+        // Show summary overlay with loading message
+        showSummaryOverlay('<p>Generating summary...</p>');
 
         // Send content to OpenAI API
         summarizeContent(apiKey, pageContent);
@@ -182,18 +189,18 @@
     function onApiKeyReset() {
         const newKey = prompt('Please enter your OpenAI API key:', '');
         if (newKey) {
-            localStorage.setItem('openai_api_key', newKey.trim());
+            GM_setValue('openai_api_key', newKey.trim());
             alert('API key updated successfully.');
         }
     }
 
     // Function to get the API key
     function getApiKey() {
-        let apiKey = localStorage.getItem('openai_api_key');
+        let apiKey = GM_getValue('openai_api_key');
         if (!apiKey) {
             apiKey = prompt('Please enter your OpenAI API key:', '');
             if (apiKey) {
-                localStorage.setItem('openai_api_key', apiKey.trim());
+                GM_setValue('openai_api_key', apiKey.trim());
             } else {
                 alert('API key is required to generate a summary.');
                 return null;
@@ -202,52 +209,40 @@
         return apiKey.trim();
     }
 
-    // Function to show the loading overlay with animation
-    function showLoadingOverlay() {
-        // Create the loading overlay
-        const loadingDiv = document.createElement('div');
-        loadingDiv.id = 'summarize-loading';
-        loadingDiv.innerHTML = `
-            <div>Generating summary...</div>
-            <button id="summarize-cancel">Cancel</button>
-        `;
-        document.body.appendChild(loadingDiv);
-
-        // Add event listener for cancel button
-        document.getElementById('summarize-cancel').addEventListener('click', onCancelRequest);
-    }
-
-    // Handler to cancel the API request
-    function onCancelRequest() {
-        if (xhrRequest) {
-            xhrRequest.abort();
-            removeLoadingOverlay();
-        }
-    }
-
-    // Function to remove the loading overlay
-    function removeLoadingOverlay() {
-        const loadingDiv = document.getElementById('summarize-loading');
-        if (loadingDiv) {
-            loadingDiv.remove();
-        }
-    }
-
-    // Function to display the summary in an overlay
-    function showSummaryOverlay(summaryText) {
+    // Function to show the summary overlay
+    function showSummaryOverlay(initialContent = '') {
         // Create the overlay
         const overlay = document.createElement('div');
         overlay.id = 'summarize-overlay';
         overlay.innerHTML = `
             <div id="summarize-close">&times;</div>
-            <div>${summaryText.replaceAll('\n', '<br>')}</div>
+            <div id="summarize-content">${initialContent}</div>
         `;
         document.body.appendChild(overlay);
 
         // Add event listener for close button
         document.getElementById('summarize-close').addEventListener('click', () => {
             overlay.remove();
+            document.removeEventListener('keydown', onEscapePress);
         });
+
+        // Add event listener for 'Escape' key to close the overlay
+        document.addEventListener('keydown', onEscapePress);
+
+        function onEscapePress(e) {
+            if (e.key === 'Escape') {
+                overlay.remove();
+                document.removeEventListener('keydown', onEscapePress);
+            }
+        }
+    }
+
+    // Function to update the summary content incrementally
+    function updateSummaryOverlay(content) {
+        const contentDiv = document.getElementById('summarize-content');
+        if (contentDiv) {
+            contentDiv.innerHTML += content.replaceAll('\n', '<br>');
+        }
     }
 
     // Function to display an error notification
@@ -257,45 +252,49 @@
         errorDiv.innerText = message;
         document.body.appendChild(errorDiv);
 
-        // Remove the notification after 2 seconds
+        // Remove the notification after 4 seconds
         setTimeout(() => {
             errorDiv.remove();
-        }, 2000);
+        }, 4000);
     }
 
-    // Variable to hold the XMLHttpRequest for cancellation
+    // Variable to hold the XMLHttpRequest for cancellation (if needed)
     let xhrRequest = null;
 
-    // Function to summarize the content using OpenAI API
+    // Function to summarize the content using OpenAI API with streaming
     function summarizeContent(apiKey, content) {
-        const userLanguage = navigator.language;
+        const userLanguage = navigator.language || 'en';
 
         // Prepare the API request
         const apiUrl = 'https://api.openai.com/v1/chat/completions';
         const requestData = {
             model: 'gpt-4o-mini',
             messages: [
-              {
-                role: 'system', content: `You are a helpful assistant that summarizes articles based on the HTML content provided. You must generate a concise summary that includes a short introduction, followed by a list of topics, and ends with a short conclusion. For the topics, you must use appropriate emojis as bullet points, and the topics must consist of descriptive titles with no detailed descriptions.
+                {
+                    role: 'system', content: `You are a helpful assistant that summarizes articles based on the HTML content provided. You must generate a concise summary that includes a short introduction, followed by a list of topics, and ends with a short conclusion. For the topics, you must use appropriate emojis as bullet points, and the topics must consist of descriptive titles with no detailed descriptions.
 
-                You must always use HTML tags to structure the summary text. The title must be wrapped in h2 tags, and you must always use the user's language besides the article's original language. The generated HTML must be ready to be injected into the final target, and you must never use markdown.
+                    You must always use HTML tags to structure the summary text. The title must be wrapped in h2 tags, and you must always use the user's language besides the article's original language. The generated HTML must be ready to be injected into the final target, and you must never use markdown.
 
-                Required structure:
-                - Use h2 for the summary title
-                - Use paragraphs for the introduction and conclusion
-                - Use appropriate emojis for topics
+                    Required structure:
+                    - Use h2 for the summary title
+                    - Use paragraphs for the introduction and conclusion
+                    - Use appropriate emojis for topics
 
-                User language: ${userLanguage}`
-              },
+                    User language: ${userLanguage}`
+                },
                 { role: 'user', content: `Page content: \n\n${content}` }
             ],
             max_tokens: 500,
             temperature: 0.5,
             n: 1,
-            stream: false
+            stream: true
         };
 
-        // Send the request using GM_xmlhttpRequest
+        // Initialize variables for processing the streaming response
+        let buffer = '';
+        let lastPosition = 0;
+
+        // Send the request using GM_xmlhttpRequest with streaming support
         xhrRequest = GM_xmlhttpRequest({
             method: 'POST',
             url: apiUrl,
@@ -304,25 +303,61 @@
                 'Authorization': `Bearer ${apiKey}`
             },
             data: JSON.stringify(requestData),
+            responseType: 'text',
+            onprogress: function(response) {
+                const newText = response.responseText.substring(lastPosition);
+                lastPosition = response.responseText.length;
+
+                buffer += newText;
+                processStreamData();
+            },
             onload: function(response) {
-                removeLoadingOverlay();
-                if (response.status === 200) {
-                    const resData = JSON.parse(response.responseText);
-                    const summary = resData.choices[0].message.content;
-                    showSummaryOverlay(summary);
-                } else {
-                    showErrorNotification('Error: Failed to retrieve summary.');
-                }
+                // Streaming complete
             },
             onerror: function() {
-                removeLoadingOverlay();
                 showErrorNotification('Error: Network error.');
             },
             onabort: function() {
-                removeLoadingOverlay();
                 showErrorNotification('Request canceled.');
             }
         });
+
+        // Function to process the streaming data
+        function processStreamData() {
+            let lines = buffer.split('\n');
+            let incompleteLine = '';
+
+            // If the last line is not empty, it's an incomplete line
+            if (lines[lines.length - 1] && lines[lines.length - 1].trim() !== '') {
+                incompleteLine = lines.pop();
+            }
+
+            for (let line of lines) {
+                line = line.trim();
+                if (line.startsWith('data: ')) {
+                    let jsonStr = line.replace('data: ', '').trim();
+
+                    if (jsonStr === '[DONE]') {
+                        // Streaming complete
+                        return;
+                    }
+
+                    try {
+                        let json = JSON.parse(jsonStr);
+                        let content = json.choices[0].delta.content;
+                        if (content) {
+                            // Update the summary overlay with new content
+                            updateSummaryOverlay(content);
+                        }
+                    } catch (e) {
+                        console.error('Failed to parse JSON chunk:', jsonStr);
+                    }
+                }
+            }
+
+            // Keep the incomplete line in buffer
+            buffer = incompleteLine;
+        }
     }
 
 })();
