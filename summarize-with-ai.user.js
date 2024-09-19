@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Summarize with AI
 // @namespace    https://github.com/insign/summarize-with-ai
-// @version      2024.09.19.10.29
+// @version      2024.09.19.10.50
 // @description  Adds a little button to summarize articles, news, and similar content using the OpenAI API (gpt-4o-mini model). The button only appears on pages detected as articles or news. The summary is displayed in a responsive overlay with a loading effect and error handling.
 // @author       Hélio <open@helio.me>
 // @license      WTFPL
@@ -274,8 +274,8 @@
         const requestData = {
             model: 'gpt-4o-mini',
             messages: [
-                { role: 'system', content: 'You are a helpful assistant that summarizes articles.' },
-                { role: 'user', content: `Please provide a concise summary of the following article, add a small introduction and conclusion, in the middle list topics but instead of bullet points use the most appropriate emoji to indicate the topic: \n\n${content}` }
+                { role: 'system', content: 'You are a helpful assistant that summarizes articles based on the HTML content provided. And gives a concise summary of the article, add a small introduction and conclusion, in the middle list topics but instead of bullet points use the most appropriate emoji to indicate the topic. Always use HTML tags to structure the summary.' },
+                { role: 'user', content: `Page content: \n\n${content}` }
             ],
             max_tokens: 500,
             temperature: 0.5,
