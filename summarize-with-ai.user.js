@@ -284,7 +284,7 @@
             model: 'gpt-4o-mini',
             messages: [
                 {
-                    role: 'system', content: `You are a helpful assistant that summarizes articles based on the HTML content provided. You must generate a concise summary that includes a short introduction, followed by a list of topics, and ends with a short conclusion. For the topics, you must use appropriate emojis as bullet points, and the topics must consist of descriptive titles with no detailed descriptions.
+                    role: 'system', content: `You are a helpful assistant that summarizes articles based on the HTML content provided. You must generate a concise summary that includes a short introduction, followed by a list of topics, and ends with a short conclusion. For the topics, you must use appropriate emojis as bullet points, and the topics must consist of descriptive titles as brief of its content resuming that topic subject.
 
                     You must always use HTML tags to structure the summary text. The title must be wrapped in h2 tags, and you must always use the user's language besides the article's original language. The generated HTML must be ready to be injected into the final target, and you must never use markdown.
 
