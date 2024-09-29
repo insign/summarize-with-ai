@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Summarize with AI
 // @namespace    https://github.com/insign/summarize-with-ai
-// @version      2024.10.11.1422
+// @version      2024.10.11.1430
 // @description  Adiciona um botão ou atalho de teclado para resumir artigos, notícias e conteúdos similares usando a API da OpenAI (modelo gpt-4o-mini). O resumo é exibido em uma sobreposição com estilos aprimorados e animação de carregamento.
 // @author       Hélio
 // @license      GPL-3.0
@@ -367,7 +367,7 @@ Adapte o texto para ser curto, conciso e informativo.
                 data: JSON.stringify(requestData)
             });
 
-            if (response.status === 200) {
+            if (response && response.status === 200) {
                 const resData = JSON.parse(response.responseText);
                 if (resData.choices && resData.choices.length > 0) {
                     const summary = resData.choices[0].message.content;
@@ -376,12 +376,17 @@ Adapte o texto para ser curto, conciso e informativo.
                     showErrorNotification('Erro: Resposta inválida da API.');
                     updateSummaryOverlay('<p>Erro: Resposta inválida da API.</p>');
                 }
-            } else if (response.status === 401) {
+            } else if (response && response.status === undefined) {
+                // Tratamento para caso o status esteja indefinido
+                showErrorNotification('Erro: Resposta inesperada da API.');
+                console.error('Resposta da API sem status:', response);
+                updateSummaryOverlay('<p>Erro: Resposta inesperada da API.</p>');
+            } else if (response && response.status === 401) {
                 showErrorNotification('Erro: Chave de API inválida.');
                 updateSummaryOverlay('<p>Erro: Chave de API inválida.</p>');
             } else {
-                showErrorNotification(`Erro: Falha ao recuperar o resumo. Status: ${response.status}`);
-                updateSummaryOverlay(`<p>Erro: Falha ao recuperar o resumo. Status: ${response.status}</p>`);
+                showErrorNotification(`Erro: Falha ao recuperar o resumo. Status: ${response.status || 'N/A'}`);
+                updateSummaryOverlay(`<p>Erro: Falha ao recuperar o resumo. Status: ${response.status || 'N/A'}</p>`);
             }
         } catch (error) {
             showErrorNotification('Erro: Problema de rede.');
