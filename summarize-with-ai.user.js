@@ -1,55 +1,59 @@
 // ==UserScript==
 // @name         Summarize with AI
 // @namespace    https://github.com/insign/summarize-with-ai
-// @version      2024.10.11.1407
-// @description  Adds a button or key shortcut to summarize articles, news, and similar content using the OpenAI API (gpt-4o-mini model). The summary is displayed in an overlay with improved styling and loading animation.
+// @version      2024.10.11.1422
+// @description  Adiciona um botão ou atalho de teclado para resumir artigos, notícias e conteúdos similares usando a API da OpenAI (modelo gpt-4o-mini). O resumo é exibido em uma sobreposição com estilos aprimorados e animação de carregamento.
 // @author       Hélio
-// @license      WTFPL
+// @license      GPL-3.0
 // @match        *://*/*
-// @grant        GM_addStyle
-// @grant        GM_xmlhttpRequest
-// @grant        GM_setValue
-// @grant        GM_getValue
+// @grant        GM.addStyle
+// @grant        GM.xmlHttpRequest
+// @grant        GM.setValue
+// @grant        GM.getValue
 // @connect      api.openai.com
 // ==/UserScript==
 
-(function() {
+(async function() {
     'use strict';
 
-    // Add keydown event listener for 'S' key to trigger summarization
+    /*** Inicialização ***/
+
+    // Adicionar evento de teclado para a tecla 'S' para acionar a sumarização
     document.addEventListener('keydown', function(e) {
         const activeElement = document.activeElement;
-        const isInput = activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.isContentEditable);
+        const isInput = activeElement && (['INPUT', 'TEXTAREA'].includes(activeElement.tagName) || activeElement.isContentEditable);
         if (!isInput && (e.key === 's' || e.key === 'S')) {
             onSummarizeShortcut();
         }
     });
 
-    // Add summarize button if the page is an article
-    addSummarizeButton();
+    // Adicionar o botão de resumir se a página for um artigo
+    if (await isArticlePage()) {
+        addSummarizeButton();
+    }
 
-    /*** Function Definitions ***/
+    /*** Definições de Funções ***/
 
-    // Function to determine if the page is an article
-    function isArticlePage() {
-        // Check for <article> element
+    // Função para determinar se a página é um artigo
+    async function isArticlePage() {
+        // Verificar se existe um elemento <article>
         if (document.querySelector('article')) {
             return true;
         }
 
-        // Check for Open Graph meta tag
+        // Verificar a meta tag Open Graph
         const ogType = document.querySelector('meta[property="og:type"]');
         if (ogType && ogType.content === 'article') {
             return true;
         }
 
-        // Check for news content in the URL
+        // Verificar se a URL contém termos relacionados a notícias ou artigos
         const url = window.location.href;
         if (/news|article|story|post/i.test(url)) {
             return true;
         }
 
-        // Check for significant text content (e.g., more than 500 words)
+        // Verificar o conteúdo textual significativo (mais de 500 palavras)
         const bodyText = document.body.innerText || "";
         const wordCount = bodyText.split(/\s+/).length;
         if (wordCount > 500) {
@@ -59,23 +63,20 @@
         return false;
     }
 
-    // Function to add the summarize button
+    // Função para adicionar o botão de sumarização
     function addSummarizeButton() {
-        if (!isArticlePage()) {
-            return; // Do not add the button if not an article
-        }
-        // Create the button element
+        // Criar o elemento do botão
         const button = document.createElement('div');
         button.id = 'summarize-button';
         button.innerText = 'S';
         document.body.appendChild(button);
 
-        // Add event listeners
+        // Adicionar listeners de eventos
         button.addEventListener('click', onSummarizeClick);
         button.addEventListener('dblclick', onApiKeyReset);
 
-        // Add styles
-        GM_addStyle(`
+        // Adicionar estilos via GM.addStyle
+        GM.addStyle(`
             #summarize-button {
                 position: fixed;
                 bottom: 20px;
@@ -193,84 +194,93 @@
         `);
     }
 
-    // Handler for clicking the "S" button
+    // Handler para o clique no botão "S"
     function onSummarizeClick() {
-        const apiKey = getApiKey();
-        if (!apiKey) {
-            return;
-        }
-
-        // Capture page source
-        const pageContent = document.documentElement.outerHTML;
-
-        // Show summary overlay with loading message
-        showSummaryOverlay('<p class="glow">Gerando resumo...</p>');
-
-        // Send content to OpenAI API
-        summarizeContent(apiKey, pageContent);
+        processSummarization();
     }
 
-    // Handler for the "S" key shortcut
-    function onSummarizeShortcut() {
-        const apiKey = getApiKey();
-        if (!apiKey) {
-            return;
-        }
-
-        if (!isArticlePage()) {
-            // Show a quick warning
+    // Handler para o atalho de teclado "S"
+    async function onSummarizeShortcut() {
+        const isArticle = await isArticlePage();
+        if (!isArticle) {
             alert('Esta página pode não ser um artigo. Prosseguindo para resumir de qualquer forma.');
         }
+        await processSummarization();
+    }
 
-        // Capture page source
+    // Função para processar a sumarização
+    async function processSummarization() {
+        const apiKey = await getApiKey();
+        if (!apiKey) {
+            return;
+        }
+
+        // Capturar o conteúdo da página
         const pageContent = document.documentElement.outerHTML;
 
-        // Show summary overlay with loading message
+        // Mostrar sobreposição de resumo com mensagem de carregamento
         showSummaryOverlay('<p class="glow">Gerando resumo...</p>');
 
-        // Send content to OpenAI API
-        summarizeContent(apiKey, pageContent);
+        try {
+            // Enviar conteúdo para a API da OpenAI
+            await summarizeContent(apiKey, pageContent);
+        } catch (error) {
+            showErrorNotification('Erro: Falha ao gerar o resumo.');
+            updateSummaryOverlay('<p>Erro: Falha ao gerar o resumo.</p>');
+            console.error(error);
+        }
     }
 
-    // Handler for resetting the API key
-    function onApiKeyReset() {
+    // Handler para resetar a chave da API
+    async function onApiKeyReset() {
         const newKey = prompt('Por favor, insira sua chave de API da OpenAI:', '');
         if (newKey) {
-            GM_setValue('openai_api_key', newKey.trim());
-            alert('Chave de API atualizada com sucesso.');
-        }
-    }
-
-    // Function to get the API key
-    function getApiKey() {
-        let apiKey = GM_getValue('openai_api_key');
-        if (!apiKey) {
-            apiKey = prompt('Por favor, insira sua chave de API da OpenAI:', '');
-            if (apiKey) {
-                GM_setValue('openai_api_key', apiKey.trim());
-            } else {
-                alert('A chave de API é necessária para gerar um resumo.');
-                return null;
+            try {
+                await GM.setValue('openai_api_key', newKey.trim());
+                alert('Chave de API atualizada com sucesso.');
+            } catch (error) {
+                alert('Erro ao atualizar a chave de API.');
+                console.error(error);
             }
         }
-        return apiKey.trim();
     }
 
-    // Function to show the summary overlay
-    function showSummaryOverlay(initialContent = '') {
-        // Create the overlay
+    // Função para obter a chave da API
+    async function getApiKey() {
+        try {
+            let apiKey = await GM.getValue('openai_api_key');
+            if (!apiKey) {
+                apiKey = prompt('Por favor, insira sua chave de API da OpenAI:', '');
+                if (apiKey) {
+                    await GM.setValue('openai_api_key', apiKey.trim());
+                } else {
+                    alert('A chave de API é necessária para gerar um resumo.');
+                    return null;
+                }
+            }
+            return apiKey.trim();
+        } catch (error) {
+            alert('Erro ao obter a chave de API.');
+            console.error(error);
+            return null;
+        }
+    }
+
+    // Função para exibir a sobreposição de resumo
+    function showSummaryOverlay(content = '') {
+        // Criar a sobreposição
         const overlay = document.createElement('div');
         overlay.id = 'summarize-overlay';
         overlay.innerHTML = `
             <div id="summarize-close">&times;</div>
-            <div id="summarize-content">${initialContent}</div>
+            <div id="summarize-content">${content}</div>
         `;
         document.body.appendChild(overlay);
 
-        // Disable background scrolling
+        // Desabilitar a rolagem de fundo
         document.body.style.overflow = 'hidden';
 
-        // Add event listeners for closing the overlay
+        // Adicionar listeners para fechar a sobreposição
         document.getElementById('summarize-close').addEventListener('click', closeOverlay);
         overlay.addEventListener('click', function(e) {
             if (e.target === overlay) {
@@ -292,7 +302,7 @@
         }
     }
 
-    // Function to update the summary content
+    // Função para atualizar o conteúdo da sobreposição de resumo
     function updateSummaryOverlay(content) {
         const contentDiv = document.getElementById('summarize-content');
         if (contentDiv) {
@@ -300,44 +310,45 @@
         }
     }
 
-    // Function to display an error notification
+    // Função para exibir uma notificação de erro
     function showErrorNotification(message) {
         const errorDiv = document.createElement('div');
         errorDiv.id = 'summarize-error';
         errorDiv.innerText = message;
         document.body.appendChild(errorDiv);
 
-        // Remove the notification after 4 seconds
+        // Remover a notificação após 4 segundos
         setTimeout(() => {
             errorDiv.remove();
         }, 4000);
     }
 
-    // Function to summarize the content using OpenAI API (non-streaming)
-    function summarizeContent(apiKey, content) {
+    // Função para resumir o conteúdo usando a API da OpenAI (não streaming)
+    async function summarizeContent(apiKey, content) {
         const userLanguage = navigator.language || 'pt-BR'; // Ajuste para português por padrão
 
-        // Prepare the API request
+        // Preparar a requisição para a API
         const apiUrl = 'https://api.openai.com/v1/chat/completions';
         const requestData = {
             model: 'gpt-4o-mini',
             messages: [
                 {
-                    role: 'system', content: `Você é um assistente útil que resume artigos com base no conteúdo HTML fornecido. Você deve gerar um resumo conciso que inclua uma breve introdução, seguida por uma lista de tópicos e termine com uma breve conclusão. Para os tópicos, você deve usar emojis apropriados como marcadores, e os tópicos devem consistir em títulos descritivos resumindo o assunto do tópico.
+                    role: 'system',
+                    content: `Você é um assistente útil que resume artigos com base no conteúdo HTML fornecido. Você deve gerar um resumo conciso que inclua uma breve introdução, seguida por uma lista de tópicos e termine com uma breve conclusão. Para os tópicos, você deve usar emojis apropriados como marcadores, e os tópicos devem consistir em títulos descritivos resumindo o assunto do tópico.
 
-                    Você deve sempre usar tags HTML para estruturar o texto do resumo. O título deve estar envolvido em tags h2, e você deve sempre usar o idioma do usuário além do idioma original do artigo. O HTML gerado deve estar pronto para ser injetado no destino final, e você nunca deve usar markdown.
+Você deve sempre usar tags HTML para estruturar o texto do resumo. O título deve estar envolvido em tags h2, e você deve sempre usar o idioma do usuário além do idioma original do artigo. O HTML gerado deve estar pronto para ser injetado no destino final, e você nunca deve usar markdown.
 
-                    Estrutura necessária:
-                    - Use h2 para o título do resumo
-                    - Use parágrafos para a introdução e conclusão
-                    - Use emojis apropriados para tópicos
-                    - Não adicione textos como "Resumo do artigo" ou "Sumário do artigo" no resumo, nem "Introdução", "Tópicos", "Conclusão", etc.
+Estrutura necessária:
+- Use h2 para o título do resumo
+- Use parágrafos para a introdução e conclusão
+- Use emojis apropriados para tópicos
+- Não adicione textos como "Resumo do artigo" ou "Sumário do artigo" no resumo, nem "Introdução", "Tópicos", "Conclusão", etc.
 
-                    Idioma do usuário: ${userLanguage}.
-                    Adapte o texto para ser curto, conciso e informativo.
-                    `
+Idioma do usuário: ${userLanguage}.
+Adapte o texto para ser curto, conciso e informativo.
+`
                 },
-                { role: 'user', content: `Conteúdo da página: \n\n${content}` }
+                { role: 'user', content: `Conteúdo da página:\n\n${content}` }
             ],
             max_tokens: 500,
             temperature: 0.5,
@@ -345,42 +356,38 @@
             stream: false
         };
 
-        // Send the request using GM_xmlhttpRequest
-        GM_xmlhttpRequest({
-            method: 'POST',
-            url: apiUrl,
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
-            },
-            data: JSON.stringify(requestData),
-            onload: function(response) {
-                if (response.status === 200) {
-                    const resData = JSON.parse(response.responseText);
-                    if (resData.choices && resData.choices.length > 0) {
-                        const summary = resData.choices[0].message.content;
-                        updateSummaryOverlay(summary.replaceAll('\n', '<br>'));
-                    } else {
-                        showErrorNotification('Erro: Resposta inválida da API.');
-                        updateSummaryOverlay('<p>Erro: Resposta inválida da API.</p>');
-                    }
-                } else if (response.status === 401) {
-                    showErrorNotification('Erro: Chave de API inválida.');
-                    updateSummaryOverlay('<p>Erro: Chave de API inválida.</p>');
+        try {
+            const response = await GM.xmlHttpRequest({
+                method: 'POST',
+                url: apiUrl,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                data: JSON.stringify(requestData)
+            });
+
+            if (response.status === 200) {
+                const resData = JSON.parse(response.responseText);
+                if (resData.choices && resData.choices.length > 0) {
+                    const summary = resData.choices[0].message.content;
+                    updateSummaryOverlay(summary.replace(/\n/g, '<br>'));
                 } else {
-                    showErrorNotification(`Erro: Falha ao recuperar o resumo. Status: ${response.status}`);
-                    updateSummaryOverlay(`<p>Erro: Falha ao recuperar o resumo. Status: ${response.status}</p>`);
+                    showErrorNotification('Erro: Resposta inválida da API.');
+                    updateSummaryOverlay('<p>Erro: Resposta inválida da API.</p>');
                 }
-            },
-            onerror: function() {
-                showErrorNotification('Erro: Problema de rede.');
-                updateSummaryOverlay('<p>Erro: Problema de rede.</p>');
-            },
-            onabort: function() {
-                showErrorNotification('Requisição cancelada.');
-                updateSummaryOverlay('<p>Requisição cancelada.</p>');
+            } else if (response.status === 401) {
+                showErrorNotification('Erro: Chave de API inválida.');
+                updateSummaryOverlay('<p>Erro: Chave de API inválida.</p>');
+            } else {
+                showErrorNotification(`Erro: Falha ao recuperar o resumo. Status: ${response.status}`);
+                updateSummaryOverlay(`<p>Erro: Falha ao recuperar o resumo. Status: ${response.status}</p>`);
             }
-        });
+        } catch (error) {
+            showErrorNotification('Erro: Problema de rede.');
+            updateSummaryOverlay('<p>Erro: Problema de rede.</p>');
+            console.error(error);
+        }
     }
 
 })();
