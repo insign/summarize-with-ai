@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Summarize with AI
 // @namespace    https://github.com/insign/summarize-with-ai
-// @version      2024.10.11.1508
+// @version      2024.10.11.1511
 // @description  Adds a button or keyboard shortcut to summarize articles, news, and similar content using the OpenAI API (gpt-4o-mini model). The summary is displayed in an overlay with enhanced styling and a loading animation.
 // @author       Hélio
 // @license      GPL-3.0
@@ -250,12 +250,6 @@
             #summarize-content ul {
                 list-style: none;
                 padding: 0;
-            }
-            /* Add Emoji as Custom Bullet Points */
-            #summarize-content li::before {
-                content: "• "; /* Bullet replaced with a dot. Change to emoji if needed */
-                margin-right: 8px;
-                color: #8e2de2; /* Purple color for bullets */
             }
         `);
     }
