@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Summarize with AI
 // @namespace    https://github.com/insign/summarize-with-ai
-// @version      2024.10.10.1247
+// @version      2024.10.11.1407
 // @description  Adds a button or key shortcut to summarize articles, news, and similar content using the OpenAI API (gpt-4o-mini model). The summary is displayed in an overlay with improved styling and loading animation.
 // @author       Hélio
 // @license      WTFPL
@@ -82,7 +82,7 @@
                 right: 20px;
                 width: 50px;
                 height: 50px;
-                background-color: #007bff;
+                background-color: rgba(0, 123, 255, 0.9);
                 color: white;
                 font-size: 24px;
                 font-weight: bold;
@@ -92,6 +92,11 @@
                 cursor: pointer;
                 z-index: 10000;
                 box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                transition: background-color 0.3s, transform 0.3s;
+            }
+            #summarize-button:hover {
+                background-color: rgba(0, 123, 255, 1);
+                transform: scale(1.1);
             }
             #summarize-overlay {
                 position: fixed;
@@ -131,6 +136,7 @@
                 padding: 10px 20px;
                 border-radius: 5px;
                 z-index: 10002;
+                font-size: 14px;
             }
             .glow {
                 font-size: 1.2em;
@@ -146,16 +152,42 @@
                     text-shadow: 0 0 20px #00ffff, 0 0 30px #00ffff, 0 0 40px #00ffff, 0 0 50px #00ffff, 0 0 60px #00ffff, 0 0 70px #00ffff;
                 }
             }
+            /* Media Queries para dispositivos móveis */
             @media (max-width: 768px) {
+                #summarize-button {
+                    width: 60px;
+                    height: 60px;
+                    font-size: 28px;
+                    line-height: 60px;
+                    bottom: 15px;
+                    right: 15px;
+                }
                 #summarize-overlay {
-                    width: 90%;
-                    height: 90%;
+                    width: 95%;
+                    height: 95%;
+                }
+                #summarize-error {
+                    bottom: 15px;
+                    left: 15px;
+                    font-size: 12px;
                 }
             }
-            @media (min-width: 769px) {
+            /* Ajustes para telas muito pequenas */
+            @media (max-width: 480px) {
+                #summarize-button {
+                    width: 70px;
+                    height: 70px;
+                    font-size: 32px;
+                    line-height: 70px;
+                    bottom: 10px;
+                    right: 10px;
+                }
                 #summarize-overlay {
-                    width: 60%;
-                    height: 85%;
+                    padding: 15px;
+                }
+                #summarize-error {
+                    padding: 8px 16px;
+                    font-size: 11px;
                 }
             }
         `);
@@ -172,7 +204,7 @@
         const pageContent = document.documentElement.outerHTML;
 
         // Show summary overlay with loading message
-        showSummaryOverlay('<p class="glow">Generating summary...</p>');
+        showSummaryOverlay('<p class="glow">Gerando resumo...</p>');
 
         // Send content to OpenAI API
         summarizeContent(apiKey, pageContent);
@@ -187,14 +219,14 @@
 
         if (!isArticlePage()) {
             // Show a quick warning
-            alert('This page may not be an article. Proceeding to summarize anyway.');
+            alert('Esta página pode não ser um artigo. Prosseguindo para resumir de qualquer forma.');
         }
 
         // Capture page source
         const pageContent = document.documentElement.outerHTML;
 
         // Show summary overlay with loading message
-        showSummaryOverlay('<p class="glow">Generating summary...</p>');
+        showSummaryOverlay('<p class="glow">Gerando resumo...</p>');
 
         // Send content to OpenAI API
         summarizeContent(apiKey, pageContent);
@@ -202,10 +234,10 @@
 
     // Handler for resetting the API key
     function onApiKeyReset() {
-        const newKey = prompt('Please enter your OpenAI API key:', '');
+        const newKey = prompt('Por favor, insira sua chave de API da OpenAI:', '');
         if (newKey) {
             GM_setValue('openai_api_key', newKey.trim());
-            alert('API key updated successfully.');
+            alert('Chave de API atualizada com sucesso.');
         }
     }
 
@@ -213,11 +245,11 @@
     function getApiKey() {
         let apiKey = GM_getValue('openai_api_key');
         if (!apiKey) {
-            apiKey = prompt('Please enter your OpenAI API key:', '');
+            apiKey = prompt('Por favor, insira sua chave de API da OpenAI:', '');
             if (apiKey) {
                 GM_setValue('openai_api_key', apiKey.trim());
             } else {
-                alert('API key is required to generate a summary.');
+                alert('A chave de API é necessária para gerar um resumo.');
                 return null;
             }
         }
@@ -235,10 +267,16 @@
         `;
         document.body.appendChild(overlay);
 
-        // Add event listener for close button
-        document.getElementById('summarize-close').addEventListener('click', closeOverlay);
+        // Disable background scrolling
+        document.body.style.overflow = 'hidden';
 
-        // Add event listener for 'Escape' key to close the overlay
+        // Add event listeners for closing the overlay
+        document.getElementById('summarize-close').addEventListener('click', closeOverlay);
+        overlay.addEventListener('click', function(e) {
+            if (e.target === overlay) {
+                closeOverlay();
+            }
+        });
         document.addEventListener('keydown', onEscapePress);
 
         function onEscapePress(e) {
@@ -249,6 +287,7 @@
 
         function closeOverlay() {
             overlay.remove();
+            document.body.style.overflow = '';
             document.removeEventListener('keydown', onEscapePress);
         }
     }
@@ -276,7 +315,7 @@
 
     // Function to summarize the content using OpenAI API (non-streaming)
     function summarizeContent(apiKey, content) {
-        const userLanguage = navigator.language || 'en';
+        const userLanguage = navigator.language || 'pt-BR'; // Ajuste para português por padrão
 
         // Prepare the API request
         const apiUrl = 'https://api.openai.com/v1/chat/completions';
@@ -284,22 +323,21 @@
             model: 'gpt-4o-mini',
             messages: [
                 {
-                    role: 'system', content: `You are a helpful assistant that summarizes articles based on the HTML content provided. You must generate a concise summary that includes a short introduction, followed by a list of topics, and ends with a short conclusion. For the topics, you must use appropriate emojis as bullet points, and the topics must consist of descriptive titles as brief of its content resuming that topic subject.
+                    role: 'system', content: `Você é um assistente útil que resume artigos com base no conteúdo HTML fornecido. Você deve gerar um resumo conciso que inclua uma breve introdução, seguida por uma lista de tópicos e termine com uma breve conclusão. Para os tópicos, você deve usar emojis apropriados como marcadores, e os tópicos devem consistir em títulos descritivos resumindo o assunto do tópico.
 
-                    You must always use HTML tags to structure the summary text. The title must be wrapped in h2 tags, and you must always use the user's language besides the article's original language. The generated HTML must be ready to be injected into the final target, and you must never use markdown.
+                    Você deve sempre usar tags HTML para estruturar o texto do resumo. O título deve estar envolvido em tags h2, e você deve sempre usar o idioma do usuário além do idioma original do artigo. O HTML gerado deve estar pronto para ser injetado no destino final, e você nunca deve usar markdown.
 
-                    Required structure:
-                    - Use h2 for the summary title
-                    - Use paragraphs for the introduction and conclusion
-                    - Use appropriate emojis for topics
-                    - Do not add text like "Article summary" or "Summary of the article" in the summary, nor "Introduction", "Topics", "Conclusion", etc
+                    Estrutura necessária:
+                    - Use h2 para o título do resumo
+                    - Use parágrafos para a introdução e conclusão
+                    - Use emojis apropriados para tópicos
+                    - Não adicione textos como "Resumo do artigo" ou "Sumário do artigo" no resumo, nem "Introdução", "Tópicos", "Conclusão", etc.
 
-                    User language: ${userLanguage}.
-                    Adapt the text to be short, concise, and informative.
+                    Idioma do usuário: ${userLanguage}.
+                    Adapte o texto para ser curto, conciso e informativo.
                     `
-
                 },
-                { role: 'user', content: `Page content: \n\n${content}` }
+                { role: 'user', content: `Conteúdo da página: \n\n${content}` }
             ],
             max_tokens: 500,
             temperature: 0.5,
@@ -319,20 +357,28 @@
             onload: function(response) {
                 if (response.status === 200) {
                     const resData = JSON.parse(response.responseText);
-                    const summary = resData.choices[0].message.content;
-                    updateSummaryOverlay(summary.replaceAll('\n', '<br>'));
+                    if (resData.choices && resData.choices.length > 0) {
+                        const summary = resData.choices[0].message.content;
+                        updateSummaryOverlay(summary.replaceAll('\n', '<br>'));
+                    } else {
+                        showErrorNotification('Erro: Resposta inválida da API.');
+                        updateSummaryOverlay('<p>Erro: Resposta inválida da API.</p>');
+                    }
+                } else if (response.status === 401) {
+                    showErrorNotification('Erro: Chave de API inválida.');
+                    updateSummaryOverlay('<p>Erro: Chave de API inválida.</p>');
                 } else {
-                    showErrorNotification('Error: Failed to retrieve summary.');
-                    updateSummaryOverlay('<p>Error: Failed to retrieve summary.</p>');
+                    showErrorNotification(`Erro: Falha ao recuperar o resumo. Status: ${response.status}`);
+                    updateSummaryOverlay(`<p>Erro: Falha ao recuperar o resumo. Status: ${response.status}</p>`);
                 }
             },
             onerror: function() {
-                showErrorNotification('Error: Network error.');
-                updateSummaryOverlay('<p>Error: Network error.</p>');
+                showErrorNotification('Erro: Problema de rede.');
+                updateSummaryOverlay('<p>Erro: Problema de rede.</p>');
             },
             onabort: function() {
-                showErrorNotification('Request canceled.');
-                updateSummaryOverlay('<p>Request canceled.</p>');
+                showErrorNotification('Requisição cancelada.');
+                updateSummaryOverlay('<p>Requisição cancelada.</p>');
             }
         });
     }
