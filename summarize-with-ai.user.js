@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Summarize with AI
 // @namespace    https://github.com/insign/summarize-with-ai
-// @version      2024.10.11.1430
+// @version      2024.10.11.1453
 // @description  Adiciona um botão ou atalho de teclado para resumir artigos, notícias e conteúdos similares usando a API da OpenAI (modelo gpt-4o-mini). O resumo é exibido em uma sobreposição com estilos aprimorados e animação de carregamento.
 // @author       Hélio
 // @license      GPL-3.0
@@ -13,7 +13,7 @@
 // @connect      api.openai.com
 // ==/UserScript==
 
-(async function() {
+(function() {
     'use strict';
 
     /*** Inicialização ***/
@@ -27,40 +27,54 @@
         }
     });
 
-    // Adicionar o botão de resumir se a página for um artigo
-    if (await isArticlePage()) {
-        addSummarizeButton();
-    }
+    // Verificar se a página é um artigo e adicionar o botão se for
+    isArticlePage().then(function(isArticle) {
+        if (isArticle) {
+            addSummarizeButton();
+        }
+    }).catch(function(error) {
+        console.error('Erro ao verificar se a página é um artigo:', error);
+    });
 
     /*** Definições de Funções ***/
 
     // Função para determinar se a página é um artigo
-    async function isArticlePage() {
-        // Verificar se existe um elemento <article>
-        if (document.querySelector('article')) {
-            return true;
-        }
+    function isArticlePage() {
+        return new Promise(function(resolve, reject) {
+            try {
+                // Verificar se existe um elemento <article>
+                if (document.querySelector('article')) {
+                    resolve(true);
+                    return;
+                }
 
-        // Verificar a meta tag Open Graph
-        const ogType = document.querySelector('meta[property="og:type"]');
-        if (ogType && ogType.content === 'article') {
-            return true;
-        }
+                // Verificar a meta tag Open Graph
+                const ogType = document.querySelector('meta[property="og:type"]');
+                if (ogType && ogType.content === 'article') {
+                    resolve(true);
+                    return;
+                }
 
-        // Verificar se a URL contém termos relacionados a notícias ou artigos
-        const url = window.location.href;
-        if (/news|article|story|post/i.test(url)) {
-            return true;
-        }
+                // Verificar se a URL contém termos relacionados a notícias ou artigos
+                const url = window.location.href;
+                if (/news|article|story|post/i.test(url)) {
+                    resolve(true);
+                    return;
+                }
 
-        // Verificar o conteúdo textual significativo (mais de 500 palavras)
-        const bodyText = document.body.innerText || "";
-        const wordCount = bodyText.split(/\s+/).length;
-        if (wordCount > 500) {
-            return true;
-        }
+                // Verificar o conteúdo textual significativo (mais de 500 palavras)
+                const bodyText = document.body.innerText || "";
+                const wordCount = bodyText.split(/\s+/).length;
+                if (wordCount > 500) {
+                    resolve(true);
+                    return;
+                }
 
-        return false;
+                resolve(false);
+            } catch (error) {
+                reject(error);
+            }
+        });
     }
 
     // Função para adicionar o botão de sumarização
@@ -200,74 +214,86 @@
     }
 
     // Handler para o atalho de teclado "S"
-    async function onSummarizeShortcut() {
-        const isArticle = await isArticlePage();
-        if (!isArticle) {
-            alert('Esta página pode não ser um artigo. Prosseguindo para resumir de qualquer forma.');
-        }
-        await processSummarization();
+    function onSummarizeShortcut() {
+        isArticlePage().then(function(isArticle) {
+            if (!isArticle) {
+                alert('Esta página pode não ser um artigo. Prosseguindo para resumir de qualquer forma.');
+            }
+            processSummarization();
+        }).catch(function(error) {
+            console.error('Erro ao verificar se a página é um artigo no atalho:', error);
+            processSummarization();
+        });
     }
 
     // Função para processar a sumarização
-    async function processSummarization() {
-        const apiKey = await getApiKey();
-        if (!apiKey) {
-            return;
-        }
+    function processSummarization() {
+        getApiKey().then(function(apiKey) {
+            if (!apiKey) {
+                return;
+            }
 
-        // Capturar o conteúdo da página
-        const pageContent = document.documentElement.outerHTML;
+            // Capturar o conteúdo da página
+            const pageContent = document.documentElement.outerHTML;
 
-        // Mostrar sobreposição de resumo com mensagem de carregamento
-        showSummaryOverlay('<p class="glow">Gerando resumo...</p>');
+            // Mostrar sobreposição de resumo com mensagem de carregamento
+            showSummaryOverlay('<p class="glow">Gerando resumo...</p>');
 
-        try {
             // Enviar conteúdo para a API da OpenAI
-            await summarizeContent(apiKey, pageContent);
-        } catch (error) {
-            showErrorNotification('Erro: Falha ao gerar o resumo.');
-            updateSummaryOverlay('<p>Erro: Falha ao gerar o resumo.</p>');
-            console.error(error);
-        }
+            summarizeContent(apiKey, pageContent);
+        }).catch(function(error) {
+            showErrorNotification('Erro: Falha ao obter a chave da API.');
+            updateSummaryOverlay('<p>Erro: Falha ao obter a chave da API.</p>');
+            console.error('Erro ao obter a chave da API:', error);
+        });
     }
 
     // Handler para resetar a chave da API
-    async function onApiKeyReset() {
+    function onApiKeyReset() {
         const newKey = prompt('Por favor, insira sua chave de API da OpenAI:', '');
         if (newKey) {
-            try {
-                await GM.setValue('openai_api_key', newKey.trim());
+            GM.setValue('openai_api_key', newKey.trim()).then(function() {
                 alert('Chave de API atualizada com sucesso.');
-            } catch (error) {
+            }).catch(function(error) {
                 alert('Erro ao atualizar a chave de API.');
-                console.error(error);
-            }
+                console.error('Erro ao atualizar a chave de API:', error);
+            });
         }
     }
 
     // Função para obter a chave da API
-    async function getApiKey() {
-        try {
-            let apiKey = await GM.getValue('openai_api_key');
-            if (!apiKey) {
-                apiKey = prompt('Por favor, insira sua chave de API da OpenAI:', '');
+    function getApiKey() {
+        return new Promise(function(resolve, reject) {
+            GM.getValue('openai_api_key').then(function(apiKey) {
                 if (apiKey) {
-                    await GM.setValue('openai_api_key', apiKey.trim());
+                    resolve(apiKey.trim());
                 } else {
-                    alert('A chave de API é necessária para gerar um resumo.');
-                    return null;
+                    const userInput = prompt('Por favor, insira sua chave de API da OpenAI:', '');
+                    if (userInput) {
+                        GM.setValue('openai_api_key', userInput.trim()).then(function() {
+                            resolve(userInput.trim());
+                        }).catch(function(error) {
+                            reject(error);
+                        });
+                    } else {
+                        alert('A chave de API é necessária para gerar um resumo.');
+                        resolve(null);
+                    }
                 }
-            }
-            return apiKey.trim();
-        } catch (error) {
-            alert('Erro ao obter a chave de API.');
-            console.error(error);
-            return null;
-        }
+            }).catch(function(error) {
+                reject(error);
+            });
+        });
     }
 
     // Função para exibir a sobreposição de resumo
-    function showSummaryOverlay(content = '') {
+    function showSummaryOverlay(content) {
+        // Verificar se a sobreposição já existe
+        if (document.getElementById('summarize-overlay')) {
+            updateSummaryOverlay(content);
+            return;
+        }
+
         // Criar a sobreposição
         const overlay = document.createElement('div');
         overlay.id = 'summarize-overlay';
@@ -296,9 +322,11 @@
         }
 
         function closeOverlay() {
-            overlay.remove();
-            document.body.style.overflow = '';
-            document.removeEventListener('keydown', onEscapePress);
+            if (document.getElementById('summarize-overlay')) {
+                document.getElementById('summarize-overlay').remove();
+                document.body.style.overflow = '';
+                document.removeEventListener('keydown', onEscapePress);
+            }
         }
     }
 
@@ -312,19 +340,27 @@
 
     // Função para exibir uma notificação de erro
     function showErrorNotification(message) {
+        // Verificar se a notificação já existe
+        if (document.getElementById('summarize-error')) {
+            document.getElementById('summarize-error').innerText = message;
+            return;
+        }
+
         const errorDiv = document.createElement('div');
         errorDiv.id = 'summarize-error';
         errorDiv.innerText = message;
         document.body.appendChild(errorDiv);
 
         // Remover a notificação após 4 segundos
-        setTimeout(() => {
-            errorDiv.remove();
+        setTimeout(function() {
+            if (document.getElementById('summarize-error')) {
+                document.getElementById('summarize-error').remove();
+            }
         }, 4000);
     }
 
     // Função para resumir o conteúdo usando a API da OpenAI (não streaming)
-    async function summarizeContent(apiKey, content) {
+    function summarizeContent(apiKey, content) {
         const userLanguage = navigator.language || 'pt-BR'; // Ajuste para português por padrão
 
         // Preparar a requisição para a API
@@ -356,43 +392,52 @@ Adapte o texto para ser curto, conciso e informativo.
             stream: false
         };
 
-        try {
-            const response = await GM.xmlHttpRequest({
-                method: 'POST',
-                url: apiUrl,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                data: JSON.stringify(requestData)
-            });
-
-            if (response && response.status === 200) {
-                const resData = JSON.parse(response.responseText);
-                if (resData.choices && resData.choices.length > 0) {
-                    const summary = resData.choices[0].message.content;
-                    updateSummaryOverlay(summary.replace(/\n/g, '<br>'));
+        GM.xmlHttpRequest({
+            method: 'POST',
+            url: apiUrl,
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            data: JSON.stringify(requestData),
+            onload: function(response) {
+                if (response && response.status === 200) {
+                    try {
+                        const resData = JSON.parse(response.responseText);
+                        if (resData.choices && resData.choices.length > 0) {
+                            const summary = resData.choices[0].message.content;
+                            updateSummaryOverlay(summary.replace(/\n/g, '<br>'));
+                        } else {
+                            showErrorNotification('Erro: Resposta inválida da API.');
+                            updateSummaryOverlay('<p>Erro: Resposta inválida da API.</p>');
+                        }
+                    } catch (parseError) {
+                        showErrorNotification('Erro: Falha ao processar a resposta da API.');
+                        updateSummaryOverlay('<p>Erro: Falha ao processar a resposta da API.</p>');
+                        console.error('Erro ao analisar a resposta da API:', parseError);
+                    }
+                } else if (response && response.status === undefined) {
+                    // Tratamento para caso o status esteja indefinido
+                    showErrorNotification('Erro: Resposta inesperada da API.');
+                    console.error('Resposta da API sem status:', response);
+                    updateSummaryOverlay('<p>Erro: Resposta inesperada da API.</p>');
+                } else if (response && response.status === 401) {
+                    showErrorNotification('Erro: Chave de API inválida.');
+                    updateSummaryOverlay('<p>Erro: Chave de API inválida.</p>');
                 } else {
-                    showErrorNotification('Erro: Resposta inválida da API.');
-                    updateSummaryOverlay('<p>Erro: Resposta inválida da API.</p>');
+                    showErrorNotification(`Erro: Falha ao recuperar o resumo. Status: ${response.status || 'N/A'}`);
+                    updateSummaryOverlay(`<p>Erro: Falha ao recuperar o resumo. Status: ${response.status || 'N/A'}</p>`);
                 }
-            } else if (response && response.status === undefined) {
-                // Tratamento para caso o status esteja indefinido
-                showErrorNotification('Erro: Resposta inesperada da API.');
-                console.error('Resposta da API sem status:', response);
-                updateSummaryOverlay('<p>Erro: Resposta inesperada da API.</p>');
-            } else if (response && response.status === 401) {
-                showErrorNotification('Erro: Chave de API inválida.');
-                updateSummaryOverlay('<p>Erro: Chave de API inválida.</p>');
-            } else {
-                showErrorNotification(`Erro: Falha ao recuperar o resumo. Status: ${response.status || 'N/A'}`);
-                updateSummaryOverlay(`<p>Erro: Falha ao recuperar o resumo. Status: ${response.status || 'N/A'}</p>`);
+            },
+            onerror: function() {
+                showErrorNotification('Erro: Problema de rede.');
+                updateSummaryOverlay('<p>Erro: Problema de rede.</p>');
+            },
+            onabort: function() {
+                showErrorNotification('Requisição cancelada.');
+                updateSummaryOverlay('<p>Requisição cancelada.</p>');
             }
-        } catch (error) {
-            showErrorNotification('Erro: Problema de rede.');
-            updateSummaryOverlay('<p>Erro: Problema de rede.</p>');
-            console.error(error);
-        }
+        });
     }
 
 })();
