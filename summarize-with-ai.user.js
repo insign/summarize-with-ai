@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Summarize with AI
 // @namespace    https://github.com/insign/summarize-with-ai
-// @version      2024.10.11.1516
+// @version      2024.10.11.1517
 // @description  Adds a button or keyboard shortcut to summarize articles, news, and similar content using the OpenAI API (gpt-4o-mini model). The summary is displayed in an overlay with enhanced styling and a loading animation.
 // @author       Hélio
 // @license      GPL-3.0
@@ -12,7 +12,7 @@
 // @grant        GM.getValue
 // @grant        GM.getResourceURL
 // @connect      api.openai.com
-// @require      https://cdnjs.cloudflare.com/ajax/libs/readability/0.4.4/Readability.min.js
+// @require      https://www.unpkg.com/@mozilla/readability@0.5.0/Readability.js
 // ==/UserScript==
 
 (function() {
@@ -25,7 +25,7 @@
     const CONTENT_ID = 'summarize-content';
     const ERROR_ID = 'summarize-error';
     const API_URL = 'https://api.openai.com/v1/chat/completions';
-    const VERSION = '2024.10.11.1516';
+    const VERSION = '2024.10.11.1517';
 
     /*** Initialization ***/
 
@@ -56,13 +56,15 @@
                 isArticle = false;
                 hideSummarizeButton();
                 disableKeyboardShortcuts();
+                console.log('Summarize with AI: No article detected on this page.');
+                return; // Disable further script functionality
             }
 
             // Set up event listeners to handle focus changes
             setupFocusListeners();
         } catch (error) {
             console.error('Initialization error:', error);
-            showErrorNotification('Error during initialization.');
+            showErrorNotification('Erro durante a inicialização.');
         }
     }
 
@@ -74,13 +76,9 @@
      */
     function getArticleData() {
         try {
-            const doc = document.cloneNode(true);
-            // Remove script and style tags to avoid parsing issues
-            const scripts = doc.querySelectorAll('script, style');
-            scripts.forEach(script => script.remove());
-
-            const reader = new Readability(doc);
-            const article = reader.parse();
+            const documentClone = document.cloneNode(true);
+            const readability = new Readability(documentClone);
+            const article = readability.parse();
 
             if (article && article.content && article.title) {
                 return {
@@ -128,7 +126,7 @@
                 line-height: 60px;
                 border-radius: 50%;
                 cursor: pointer;
-                z-index: 99999; /* Increased z-index to ensure visibility */
+                z-index: 100001; /* Increased z-index to ensure visibility */
                 box-shadow: 0 2px 5px rgba(0,0,0,0.3);
                 transition: background-color 0.3s, transform 0.3s;
                 user-select: none;
@@ -147,7 +145,7 @@
                 left: 50%;
                 transform: translate(-50%, -50%);
                 background-color: #ffffff;
-                z-index: 100000; /* Increased z-index to ensure it's above all elements */
+                z-index: 100002; /* Increased z-index to ensure it's above all elements */
                 padding: 30px;
                 box-shadow: 0 0 15px rgba(0,0,0,0.5);
                 overflow: auto;
@@ -202,7 +200,7 @@
                 color: white;
                 padding: 10px 20px;
                 border-radius: 5px;
-                z-index: 100001; /* Higher than overlay */
+                z-index: 100003; /* Higher than overlay */
                 font-size: 14px;
                 font-family: Arial, sans-serif;
             }
@@ -371,7 +369,7 @@
      */
     function onSummarizeShortcut() {
         if (!isArticle) {
-            alert('This page may not be an article. Proceeding to summarize anyway.');
+            alert('Esta página pode não ser um artigo. Continuando para resumir de qualquer maneira.');
         }
         processSummarization();
     }
@@ -394,15 +392,15 @@
                 content: articleContent
             };
 
-            // Display the overlay with the loading animation
-            showSummaryOverlay('<p class="glow">Generating summary...</p>');
+            // Display the overlay com animação de carregamento
+            showSummaryOverlay('<p class="glow">Gerando resumo...</p>');
 
-            // Send the data to the OpenAI API for summarization
+            // Envie os dados para a API da OpenAI para resumir
             await summarizeContent(apiKey, payload);
         } catch (error) {
-            showErrorNotification('Error: Failed to initiate summarization.');
-            updateSummaryOverlay('<p>Error: Failed to initiate summarization.</p>');
-            console.error('Summarization process error:', error);
+            showErrorNotification('Erro: Falha ao iniciar a sumarização.');
+            updateSummaryOverlay('<p>Erro: Falha ao iniciar a sumarização.</p>');
+            console.error('Erro no processo de sumarização:', error);
         }
     }
 
@@ -410,13 +408,13 @@
      * Handles the double-click event on the summarize button to reset the API key.
      */
     function onApiKeyReset() {
-        const newKey = prompt('Please enter your OpenAI API key:', '');
+        const newKey = prompt('Por favor, insira sua chave de API da OpenAI:', '');
         if (newKey) {
             GM.setValue('openai_api_key', newKey.trim()).then(function() {
-                alert('API key successfully updated.');
+                alert('Chave de API atualizada com sucesso.');
             }).catch(function(error) {
-                alert('Error updating the API key.');
-                console.error('Error updating the API key:', error);
+                alert('Erro ao atualizar a chave de API.');
+                console.error('Erro ao atualizar a chave de API:', error);
             });
         }
     }
@@ -432,19 +430,19 @@
             if (apiKey) {
                 return apiKey.trim();
             } else {
-                const userInput = prompt('Please enter your OpenAI API key:', '');
+                const userInput = prompt('Por favor, insira sua chave de API da OpenAI:', '');
                 if (userInput) {
                     apiKey = userInput.trim();
                     await GM.setValue('openai_api_key', apiKey);
                     return apiKey;
                 } else {
-                    alert('An API key is required to generate a summary.');
+                    alert('É necessária uma chave de API para gerar um resumo.');
                     return null;
                 }
             }
         } catch (error) {
-            console.error('API key retrieval error:', error);
-            alert('Failed to retrieve the API key.');
+            console.error('Erro ao recuperar a chave de API:', error);
+            alert('Falha ao recuperar a chave de API.');
             return null;
         }
     }
@@ -556,29 +554,29 @@
     async function summarizeContent(apiKey, payload) {
         try {
             // Prepare the API request payload
-            const userLanguage = navigator.language || 'en-US'; // Default to English
+            const userLanguage = navigator.language || 'pt-BR'; // Default to Portuguese if navigator.language is undefined
 
             const requestData = {
                 model: 'gpt-4o-mini',
                 messages: [
                     {
                         role: 'system',
-                        content: `You are a helpful assistant that summarizes articles based on the provided title and content. You should generate a concise summary that includes a brief introduction, followed by a list of topics, and ends with a short conclusion. For the topics, use appropriate emojis as bullet points, and the topics should consist of descriptive titles summarizing the subject of each topic.
+                        content: `Você é um assistente útil que resume artigos com base no título e conteúdo fornecidos. Você deve gerar um resumo conciso que inclua uma breve introdução, seguida por uma lista de tópicos e termine com uma curta conclusão. Para os tópicos, use emojis apropriados como marcadores, e os tópicos devem consistir em títulos descritivos que resumem o assunto de cada tópico.
 
-You must always use HTML tags to structure the summary text. The title should be wrapped in <h2> tags, and you must always use the user's language in addition to the article's original language. The generated HTML should be ready to be injected into the target location, and you must never use markdown.
+Você deve sempre usar tags HTML para estruturar o texto do resumo. O título deve estar envolto em tags <h2>, e você deve sempre usar o idioma do usuário além do idioma original do artigo. O HTML gerado deve estar pronto para ser injetado no local de destino, e você nunca deve usar markdown.
 
-Required structure:
-- Use <h2> for the summary title
-- Use paragraphs for the introduction and conclusion
-- Use appropriate emojis for topics
-- Do not add text like "Article Summary" or "Summary of the article" in the summary, nor "Introduction", "Topics", "Conclusion", etc.
+Estrutura requerida:
+- Use <h2> para o título do resumo
+- Use parágrafos para a introdução e conclusão
+- Use emojis apropriados para os tópicos
+- Não adicione textos como "Resumo do Artigo" ou "Sumário do artigo" no resumo, nem "Introdução", "Tópicos", "Conclusão", etc.
 
-User language: ${userLanguage}.
-Adapt the text to be short, concise, and informative.`
+Idioma do usuário: ${userLanguage}.
+Adapte o texto para ser curto, conciso e informativo.`
                     },
                     {
                         role: 'user',
-                        content: `Title: ${payload.title}\n\nContent: ${payload.content}`
+                        content: `Título: ${payload.title}\n\nConteúdo: ${payload.content}`
                     }
                 ],
                 max_tokens: 500,
@@ -587,7 +585,7 @@ Adapt the text to be short, concise, and informative.`
                 stream: false
             };
 
-            // Send the API request using GM.xmlHttpRequest
+            // Envie a requisição para a API da OpenAI usando GM.xmlHttpRequest
             GM.xmlHttpRequest({
                 method: 'POST',
                 url: API_URL,
@@ -603,50 +601,50 @@ Adapt the text to be short, concise, and informative.`
                             if (resData.choices && resData.choices.length > 0) {
                                 const summary = resData.choices[0].message.content;
 
-                                // Replace line breaks with <br> for HTML rendering
+                                // Substitui quebras de linha por <br> para renderização HTML
                                 const formattedSummary = summary.replace(/\n/g, '<br>');
 
-                                // Update the overlay with the generated summary
+                                // Atualiza o overlay com o resumo gerado
                                 updateSummaryOverlay(formattedSummary);
                             } else {
-                                showErrorNotification('Error: Invalid API response.');
-                                updateSummaryOverlay('<p>Error: Invalid API response.</p>');
+                                showErrorNotification('Erro: Resposta inválida da API.');
+                                updateSummaryOverlay('<p>Erro: Resposta inválida da API.</p>');
                             }
                         } catch (parseError) {
-                            showErrorNotification('Error: Failed to parse API response.');
-                            updateSummaryOverlay('<p>Error: Failed to parse API response.</p>');
-                            console.error('Error parsing API response:', parseError);
+                            showErrorNotification('Erro: Falha ao analisar a resposta da API.');
+                            updateSummaryOverlay('<p>Erro: Falha ao analisar a resposta da API.</p>');
+                            console.error('Erro ao analisar a resposta da API:', parseError);
                         }
                     } else if (response && response.status === undefined) {
-                        // Handle cases where response.status is undefined
-                        showErrorNotification('Error: Unexpected API response.');
-                        console.error('API response without status:', response);
-                        updateSummaryOverlay('<p>Error: Unexpected API response.</p>');
+                        // Lida com casos onde response.status está indefinido
+                        showErrorNotification('Erro: Resposta inesperada da API.');
+                        console.error('Resposta da API sem status:', response);
+                        updateSummaryOverlay('<p>Erro: Resposta inesperada da API.</p>');
                     } else if (response && response.status === 401) {
-                        // Handle unauthorized access (invalid API key)
-                        showErrorNotification('Error: Invalid API key.');
-                        updateSummaryOverlay('<p>Error: Invalid API key.</p>');
+                        // Lida com acesso não autorizado (chave de API inválida)
+                        showErrorNotification('Erro: Chave de API inválida.');
+                        updateSummaryOverlay('<p>Erro: Chave de API inválida.</p>');
                     } else {
-                        // Handle other types of errors
-                        showErrorNotification(`Error: Failed to retrieve summary. Status: ${response.status || 'N/A'}`);
-                        updateSummaryOverlay(`<p>Error: Failed to retrieve summary. Status: ${response.status || 'N/A'}</p>`);
+                        // Lida com outros tipos de erros
+                        showErrorNotification(`Erro: Falha ao recuperar o resumo. Status: ${response.status || 'N/A'}`);
+                        updateSummaryOverlay(`<p>Erro: Falha ao recuperar o resumo. Status: ${response.status || 'N/A'}</p>`);
                     }
                 },
                 onerror: function() {
-                    // Handle network errors
-                    showErrorNotification('Error: Network issue.');
-                    updateSummaryOverlay('<p>Error: Network issue.</p>');
+                    // Lida com erros de rede
+                    showErrorNotification('Erro: Problema de rede.');
+                    updateSummaryOverlay('<p>Erro: Problema de rede.</p>');
                 },
                 onabort: function() {
-                    // Handle request abortion
-                    showErrorNotification('Request aborted.');
-                    updateSummaryOverlay('<p>Request aborted.</p>');
+                    // Lida com aborto da requisição
+                    showErrorNotification('Requisição abortada.');
+                    updateSummaryOverlay('<p>Requisição abortada.</p>');
                 }
             });
         } catch (error) {
-            showErrorNotification('Error: Failed to communicate with the API.');
-            updateSummaryOverlay('<p>Error: Failed to communicate with the API.</p>');
-            console.error('API communication error:', error);
+            showErrorNotification('Erro: Falha ao comunicar com a API.');
+            updateSummaryOverlay('<p>Erro: Falha ao comunicar com a API.</p>');
+            console.error('Erro de comunicação com a API:', error);
         }
     }
 
