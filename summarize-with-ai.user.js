@@ -1,16 +1,15 @@
 // ==UserScript==
 // @name         Summarize with AI
 // @namespace    https://github.com/insign/summarize-with-ai
-// @version      2024.10.11.1518
+// @version      2024.10.11.1522
 // @description  Adds a button or keyboard shortcut to summarize articles, news, and similar content using the OpenAI API (gpt-4o-mini model). The summary is displayed in an overlay with enhanced styling and a loading animation.
-// @author       Hélio
-// @license      GPL-3.0
+// @author       Hélio <open@helio.me>
+// @license      WTFPL
 // @match        *://*/*
 // @grant        GM.addStyle
 // @grant        GM.xmlHttpRequest
 // @grant        GM.setValue
 // @grant        GM.getValue
-// @grant        GM.getResourceURL
 // @connect      api.openai.com
 // @require      https://cdnjs.cloudflare.com/ajax/libs/readability/0.5.0/Readability.min.js
 // ==/UserScript==
@@ -143,23 +142,31 @@
             /* Summary Overlay Styling */
             #${OVERLAY_ID} {
                 position: fixed;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                background-color: #ffffff;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
                 z-index: 100000; /* Increased z-index to ensure it's above all elements */
-                padding: 30px;
-                box-shadow: 0 0 15px rgba(0,0,0,0.5);
-                overflow: auto;
-                font-size: 1.2em;
-                max-width: 90%;
-                max-height: 90%;
-                border-radius: 10px;
                 display: flex;
-                flex-direction: column;
                 align-items: center;
                 justify-content: center;
+                overflow: auto;
                 font-family: Arial, sans-serif;
+            }
+
+            /* Summary Content Container */
+            #${CONTENT_ID} {
+                background-color: #ffffff;
+                padding: 30px;
+                border-radius: 10px;
+                box-shadow: 0 0 15px rgba(0,0,0,0.5);
+                max-width: 90%;
+                max-height: 90%;
+                overflow: auto;
+                position: relative;
+                font-size: 1.2em;
+                color: #333333;
             }
 
             /* Close Button Styling */
@@ -184,13 +191,6 @@
                 border-radius: 4px;
                 font-size: 12px;
                 white-space: nowrap;
-            }
-
-            /* Summary Content Styling */
-            #${CONTENT_ID} {
-                margin-top: 40px;
-                width: 100%;
-                color: #333333;
             }
 
             /* Error Notification Styling */
@@ -235,9 +235,7 @@
                     bottom: 15px;
                     right: 15px;
                 }
-                #${OVERLAY_ID} {
-                    width: 95%;
-                    height: 95%;
+                #${CONTENT_ID} {
                     padding: 25px;
                 }
                 #${ERROR_ID} {
@@ -257,7 +255,7 @@
                     bottom: 10px;
                     right: 10px;
                 }
-                #${OVERLAY_ID} {
+                #${CONTENT_ID} {
                     padding: 20px;
                 }
                 #${ERROR_ID} {
@@ -395,7 +393,7 @@
             };
 
             // Display the overlay with the loading animation
-            showSummaryOverlay('<p class="glow">Generating summary...</p>');
+            showSummaryOverlay('<p class="glow">Summarizing</p>');
 
             // Send the data to the OpenAI API for summarization
             await summarizeContent(apiKey, payload);
@@ -466,20 +464,25 @@
         const overlay = document.createElement('div');
         overlay.id = OVERLAY_ID;
         overlay.innerHTML = `
-            <div id="${CLOSE_BUTTON_ID}">&times;</div>
-            <div id="${CONTENT_ID}">${content}</div>
+            <div id="${CONTENT_ID}">
+                <div id="${CLOSE_BUTTON_ID}">&times;</div>
+                ${content}
+            </div>
         `;
         document.body.appendChild(overlay);
 
         // Disable background scrolling when the overlay is open
         document.body.style.overflow = 'hidden';
 
+        // Reference to the content container
+        const contentContainer = document.getElementById(CONTENT_ID);
+
         // Add event listener to the close button
         document.getElementById(CLOSE_BUTTON_ID).addEventListener('click', closeOverlay);
 
         // Add event listener to close the overlay when clicking outside the content area
         overlay.addEventListener('click', function(e) {
-            if (e.target === overlay) {
+            if (!contentContainer.contains(e.target)) {
                 closeOverlay();
             }
         });
@@ -517,7 +520,31 @@
     function updateSummaryOverlay(content) {
         const contentDiv = document.getElementById(CONTENT_ID);
         if (contentDiv) {
-            contentDiv.innerHTML = content;
+            contentDiv.innerHTML = `<div id="${CLOSE_BUTTON_ID}">&times;</div>` + content;
+            // Re-attach the close button event listener
+            document.getElementById(CLOSE_BUTTON_ID).addEventListener('click', closeOverlay);
+        }
+
+        /**
+         * Closes the summary overlay and re-enables background scrolling.
+         */
+        function closeOverlay() {
+            const existingOverlay = document.getElementById(OVERLAY_ID);
+            if (existingOverlay) {
+                existingOverlay.remove();
+                document.body.style.overflow = '';
+                document.removeEventListener('keydown', onEscapePress);
+            }
+        }
+
+        /**
+         * Handles the 'Escape' key press to close the overlay.
+         * @param {KeyboardEvent} e - The keyboard event.
+         */
+        function onEscapePress(e) {
+            if (e.key === 'Escape') {
+                closeOverlay();
+            }
         }
     }
 
@@ -563,13 +590,13 @@
                 messages: [
                     {
                         role: 'system',
-                        content: `You are a helpful assistant that summarizes articles based on the provided title and content. You should generate a concise summary that includes a brief introduction, followed by a list of topics, and ends with a short conclusion. For the topics, use appropriate emojis as bullet points, and the topics should consist of descriptive titles summarizing the subject of each topic.
+                        content: `You are a helpful assistant that summarizes articles based on the provided title and content. You should generate a concise summary that includes a very brief introduction, followed by a list of topics. For the topics, use appropriate emojis as bullet points, and the topics should consist of descriptive titles summarizing the subject of each topic.
 
-You must always use HTML tags to structure the summary text. The title should be wrapped in <h2> tags, and you must always use the user's language in addition to the article's original language. The generated HTML should be ready to be injected into the target location, and you must never use markdown.
+You must always use HTML tags to structure the summary text. You must always use the user's language in addition to the article's original language. The generated HTML should be ready to be injected into the target location, and you must never use markdown.
 
 Required structure:
-- Use <h2> for the summary title
-- Use paragraphs for the introduction and conclusion
+- Do not add any title
+- Use max 2 sentences for the introduction.
 - Use appropriate emojis for topics
 - Do not add text like "Article Summary" or "Summary of the article" in the summary, nor "Introduction", "Topics", "Conclusion", etc.
 
