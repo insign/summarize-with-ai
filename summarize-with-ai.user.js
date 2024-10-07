@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Summarize with AI
 // @namespace    https://github.com/insign/summarize-with-ai
-// @version      2024.10.11.1524
+// @version      2024.10.11.1526
 // @description  Adds a button or keyboard shortcut to summarize articles, news, and similar content using the OpenAI API (gpt-4o-mini model). The summary is displayed in an overlay with enhanced styling and a loading animation.
 // @author       Hélio <open@helio.me>
 // @license      WTFPL
@@ -14,7 +14,7 @@
 // @require      https://cdnjs.cloudflare.com/ajax/libs/readability/0.5.0/Readability.min.js
 // ==/UserScript==
 
-(function() {
+(function () {
     'use strict';
 
     /*** Constants ***/
@@ -24,40 +24,33 @@
     const CONTENT_ID = 'summarize-content';
     const ERROR_ID = 'summarize-error';
     const API_URL = 'https://api.openai.com/v1/chat/completions';
-    const VERSION = '2024.10.11.1516';
 
     /*** Initialization ***/
-
-    // Variable to store whether the current page is an article
     let isArticle = false;
-    // Variables to store article title and content
     let articleTitle = '';
     let articleContent = '';
 
-    // Initialize the script
     initialize();
 
     /**
-     * Initializes the userscript by detecting if the page is an article,
-     * setting up the summarize button and keyboard shortcuts accordingly.
+     * Initializes the Userscript by detecting article content,
+     * setting up the summarize button and keyboard shortcuts,
+     * and adding necessary event listeners.
      */
     async function initialize() {
         try {
-            // Use Readability to parse the article
             const articleData = getArticleData();
             if (articleData) {
                 isArticle = true;
-                articleTitle = articleData.title;
-                articleContent = articleData.content;
+                ({ title: articleTitle, content: articleContent } = articleData);
                 addSummarizeButton();
                 setupKeyboardShortcuts();
             } else {
                 isArticle = false;
-                hideSummarizeButton();
+                hideElement(BUTTON_ID);
                 disableKeyboardShortcuts();
             }
 
-            // Set up event listeners to handle focus changes
             setupFocusListeners();
         } catch (error) {
             console.error('Initialization error:', error);
@@ -68,27 +61,25 @@
     /*** Function Definitions ***/
 
     /**
-     * Uses Mozilla's Readability to extract the article's title and content.
-     * @returns {Object|null} An object containing the title and content if an article is found, otherwise null.
+     * Extracts the article's title and content using Readability.
+     * @returns {Object|null} Article data or null if not found.
      */
     function getArticleData() {
         try {
-            const doc = document.cloneNode(true);
-            // Remove script and style tags to avoid parsing issues
-            const scripts = doc.querySelectorAll('script, style');
-            scripts.forEach(script => script.remove());
+            const clonedDoc = document.cloneNode(true);
+            // Remove unwanted tags to prevent parsing issues
+            clonedDoc.querySelectorAll('script, style').forEach(el => el.remove());
 
-            const reader = new Readability(doc);
+            const reader = new Readability(clonedDoc);
             const article = reader.parse();
 
             if (article && article.content && article.title) {
                 return {
                     title: article.title,
-                    content: article.textContent // Using textContent to send plain text to the API
+                    content: article.textContent // Plain text for API
                 };
-            } else {
-                return null;
             }
+            return null;
         } catch (error) {
             console.error('Readability parsing error:', error);
             return null;
@@ -96,21 +87,26 @@
     }
 
     /**
-     * Adds the summarize button to the page with standardized styling.
-     * The button is fixed at the bottom-right corner and has a high z-index.
+     * Adds the summarize button to the page with predefined styles and event listeners.
      */
     function addSummarizeButton() {
-        // Create the button element
+        if (document.getElementById(BUTTON_ID)) return; // Prevent duplicates
+
         const button = document.createElement('div');
         button.id = BUTTON_ID;
         button.innerText = 'S';
         document.body.appendChild(button);
 
-        // Add click and double-click event listeners
-        button.addEventListener('click', onSummarizeClick);
-        button.addEventListener('dblclick', onApiKeyReset);
+        button.addEventListener('click', processSummarization);
+        button.addEventListener('dblclick', resetApiKey);
 
-        // Inject CSS styles using GM.addStyle to standardize them and prevent inheritance
+        injectStyles();
+    }
+
+    /**
+     * Injects CSS styles for the summarize button, overlay, and notifications.
+     */
+    function injectStyles() {
         GM.addStyle(`
             /* Summarize Button Styling */
             #${BUTTON_ID} {
@@ -127,13 +123,12 @@
                 line-height: 60px;
                 border-radius: 50%;
                 cursor: pointer;
-                z-index: 99999; /* Increased z-index to ensure visibility */
+                z-index: 99999;
                 box-shadow: 0 2px 5px rgba(0,0,0,0.3);
                 transition: background-color 0.3s, transform 0.3s;
                 user-select: none;
                 font-family: Arial, sans-serif;
             }
-            /* Hover effect for the summarize button */
             #${BUTTON_ID}:hover {
                 background-color: rgba(0, 123, 255, 1);
                 transform: scale(1.1);
@@ -146,18 +141,16 @@
                 left: 0;
                 width: 100%;
                 height: 100%;
-                background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
-                z-index: 100000; /* Increased z-index to ensure it's above all elements */
+                background-color: rgba(0, 0, 0, 0.5);
+                z-index: 100000;
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 overflow: auto;
                 font-family: Arial, sans-serif;
             }
-
-            /* Summary Content Container */
             #${CONTENT_ID} {
-                background-color: #ffffff;
+                background-color: #fff;
                 padding: 30px;
                 border-radius: 10px;
                 box-shadow: 0 0 15px rgba(0,0,0,0.5);
@@ -166,20 +159,17 @@
                 overflow: auto;
                 position: relative;
                 font-size: 1.2em;
-                color: #333333;
+                color: #333;
             }
-
-            /* Close Button Styling */
             #${CLOSE_BUTTON_ID} {
                 position: absolute;
                 top: 15px;
                 right: 15px;
                 cursor: pointer;
                 font-size: 26px;
+                color: #555;
                 transition: transform 0.2s;
-                color: #555555;
             }
-            /* Tooltip for Close Button on Hover */
             #${CLOSE_BUTTON_ID}:hover::after {
                 content: "ESC";
                 position: absolute;
@@ -202,12 +192,12 @@
                 color: white;
                 padding: 10px 20px;
                 border-radius: 5px;
-                z-index: 100001; /* Higher than overlay */
+                z-index: 100001;
                 font-size: 14px;
                 font-family: Arial, sans-serif;
             }
 
-            /* Loading Text Animation */
+            /* Loading Animation */
             .glow {
                 font-size: 1.5em;
                 color: #333;
@@ -225,7 +215,7 @@
                 }
             }
 
-            /* Media Queries for Mobile Devices */
+            /* Responsive Design */
             @media (max-width: 768px) {
                 #${BUTTON_ID} {
                     width: 70px;
@@ -244,8 +234,6 @@
                     font-size: 12px;
                 }
             }
-
-            /* Additional Adjustments for Very Small Screens */
             @media (max-width: 480px) {
                 #${BUTTON_ID} {
                     width: 80px;
@@ -264,17 +252,18 @@
                 }
             }
 
-            /* Remove Default Bullet Points from Lists */
-            #${CONTENT_ID} ul {
+            /* Clean List Styles */
+            #${CONTENT_ID} ul, #${CONTENT_ID} p {
                 list-style: none;
                 padding: 0;
+                margin: 0;
             }
         `);
     }
 
     /**
-     * Sets up keyboard shortcuts by adding a keydown event listener.
-     * The 'S' key triggers the summarization unless an input element is focused.
+     * Sets up keyboard shortcuts for summarization.
+     * 'S' key triggers summarization unless an input is focused.
      */
     function setupKeyboardShortcuts() {
         document.addEventListener('keydown', handleKeyDown);
@@ -288,86 +277,70 @@
     }
 
     /**
-     * Handles the keydown event to trigger summarization when 'S' key is pressed.
-     * Ignores the event if an input, textarea, or contenteditable element is focused.
-     * @param {KeyboardEvent} e - The keyboard event.
+     * Handles keydown events to trigger summarization with 'S' key.
+     * @param {KeyboardEvent} e
      */
     function handleKeyDown(e) {
-        // Check if any input-related element is focused
-        const activeElement = document.activeElement;
-        const isInput = activeElement && (['INPUT', 'TEXTAREA', 'SELECT'].includes(activeElement.tagName) || activeElement.isContentEditable);
+        const active = document.activeElement;
+        const isInput = active && (['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName) || active.isContentEditable);
+
         if (isInput) {
-            hideSummarizeButton();
+            hideElement(BUTTON_ID);
             return;
         }
 
-        // If 'S' or 's' is pressed, trigger summarization
         if (e.key.toLowerCase() === 's') {
-            e.preventDefault(); // Prevent default behavior
-            onSummarizeShortcut();
+            e.preventDefault();
+            triggerSummarization();
         } else {
-            // Show the summarize button if 'S' is not pressed and not in input
-            showSummarizeButton();
+            showElement(BUTTON_ID);
         }
     }
 
     /**
-     * Sets up listeners to monitor focus changes on the page.
-     * Hides the summarize button when an input element is focused and shows it otherwise.
+     * Monitors focus changes to show or hide the summarize button accordingly.
      */
     function setupFocusListeners() {
-        // Listen for focusin and focusout events to handle button visibility
-        document.addEventListener('focusin', handleFocusChange);
-        document.addEventListener('focusout', handleFocusChange);
+        document.addEventListener('focusin', toggleButtonVisibility);
+        document.addEventListener('focusout', toggleButtonVisibility);
     }
 
     /**
-     * Handles focus changes to show or hide the summarize button.
-     * @param {FocusEvent} e - The focus event.
+     * Toggles the visibility of the summarize button based on focused element.
      */
-    function handleFocusChange(e) {
-        const activeElement = document.activeElement;
-        const isInput = activeElement && (['INPUT', 'TEXTAREA', 'SELECT'].includes(activeElement.tagName) || activeElement.isContentEditable);
+    function toggleButtonVisibility() {
+        const active = document.activeElement;
+        const isInput = active && (['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName) || active.isContentEditable);
 
         if (isInput) {
-            hideSummarizeButton();
+            hideElement(BUTTON_ID);
         } else if (isArticle) {
-            showSummarizeButton();
+            showElement(BUTTON_ID);
         }
     }
 
     /**
-     * Shows the summarize button by setting its display to block.
+     * Shows an element by its ID.
+     * @param {string} id
      */
-    function showSummarizeButton() {
-        const button = document.getElementById(BUTTON_ID);
-        if (button) {
-            button.style.display = 'block';
-        }
+    function showElement(id) {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'block';
     }
 
     /**
-     * Hides the summarize button by setting its display to none.
+     * Hides an element by its ID.
+     * @param {string} id
      */
-    function hideSummarizeButton() {
-        const button = document.getElementById(BUTTON_ID);
-        if (button) {
-            button.style.display = 'none';
-        }
+    function hideElement(id) {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
     }
 
     /**
-     * Handles the click event on the summarize button to initiate summarization.
+     * Triggers the summarization process, handling both button clicks and keyboard shortcuts.
      */
-    function onSummarizeClick() {
-        processSummarization();
-    }
-
-    /**
-     * Handles the keyboard shortcut for summarization when 'S' key is pressed.
-     * Alerts the user if the page might not be an article but proceeds to summarize.
-     */
-    function onSummarizeShortcut() {
+    function triggerSummarization() {
         if (!isArticle) {
             alert('This page may not be an article. Proceeding to summarize anyway.');
         }
@@ -375,71 +348,58 @@
     }
 
     /**
-     * Initiates the summarization process by obtaining the API key,
-     * preparing the article data, displaying the loading overlay,
-     * and sending the data to the OpenAI API.
+     * Initiates the summarization process by fetching the API key,
+     * displaying the loading overlay, and sending data to OpenAI API.
      */
     async function processSummarization() {
         try {
             const apiKey = await getApiKey();
-            if (!apiKey) {
-                return;
-            }
+            if (!apiKey) return;
 
-            // Prepare the data to send to the API
-            const payload = {
-                title: articleTitle,
-                content: articleContent
-            };
+            const payload = { title: articleTitle, content: articleContent };
 
-            // Display the overlay with the loading animation
             showSummaryOverlay('<p class="glow">Summarizing</p>');
-
-            // Send the data to the OpenAI API for summarization
             await summarizeContent(apiKey, payload);
         } catch (error) {
+            console.error('Summarization process error:', error);
             showErrorNotification('Error: Failed to initiate summarization.');
             updateSummaryOverlay('<p>Error: Failed to initiate summarization.</p>');
-            console.error('Summarization process error:', error);
         }
     }
 
     /**
-     * Handles the double-click event on the summarize button to reset the API key.
+     * Handles double-click on the summarize button to reset the API key.
      */
-    function onApiKeyReset() {
+    function resetApiKey() {
         const newKey = prompt('Please enter your OpenAI API key:', '');
         if (newKey) {
-            GM.setValue('openai_api_key', newKey.trim()).then(function() {
-                alert('API key successfully updated.');
-            }).catch(function(error) {
-                alert('Error updating the API key.');
-                console.error('Error updating the API key:', error);
-            });
+            GM.setValue('openai_api_key', newKey.trim())
+                .then(() => alert('API key successfully updated.'))
+                .catch(error => {
+                    alert('Error updating the API key.');
+                    console.error('API key update error:', error);
+                });
         }
     }
 
     /**
-     * Retrieves the OpenAI API key from storage.
-     * If not found, prompts the user to input it and saves it.
-     * @returns {Promise<string|null>} Promise resolving to the API key or null if not provided.
+     * Retrieves the OpenAI API key from storage or prompts the user to input it.
+     * @returns {Promise<string|null>} The API key or null if not provided.
      */
     async function getApiKey() {
         try {
-            let apiKey = await GM.getValue('openai_api_key');
-            if (apiKey) {
-                return apiKey.trim();
-            } else {
+            let apiKey = (await GM.getValue('openai_api_key'))?.trim();
+            if (!apiKey) {
                 const userInput = prompt('Please enter your OpenAI API key:', '');
                 if (userInput) {
                     apiKey = userInput.trim();
                     await GM.setValue('openai_api_key', apiKey);
-                    return apiKey;
                 } else {
                     alert('An API key is required to generate a summary.');
                     return null;
                 }
             }
+            return apiKey;
         } catch (error) {
             console.error('API key retrieval error:', error);
             alert('Failed to retrieve the API key.');
@@ -448,19 +408,16 @@
     }
 
     /**
-     * Displays the summary overlay with the provided content.
-     * Adds functionality to close the overlay by clicking the close button,
-     * clicking outside the content area, or pressing the 'Escape' key.
-     * @param {string} content - HTML content to display inside the overlay.
+     * Displays the summary overlay with specified content.
+     * Sets up event listeners for closing the overlay.
+     * @param {string} content - HTML content to display.
      */
     function showSummaryOverlay(content) {
-        // Check if the overlay already exists to prevent multiple instances
         if (document.getElementById(OVERLAY_ID)) {
             updateSummaryOverlay(content);
             return;
         }
 
-        // Create the overlay element
         const overlay = document.createElement('div');
         overlay.id = OVERLAY_ID;
         overlay.innerHTML = `
@@ -470,46 +427,32 @@
             </div>
         `;
         document.body.appendChild(overlay);
-
-        // Disable background scrolling when the overlay is open
         document.body.style.overflow = 'hidden';
 
-        // Reference to the content container
         const contentContainer = document.getElementById(CONTENT_ID);
-
-        // Add event listener to the close button
         document.getElementById(CLOSE_BUTTON_ID).addEventListener('click', closeOverlay);
-
-        // Add event listener to close the overlay when clicking outside the content area
-        overlay.addEventListener('click', function(e) {
+        overlay.addEventListener('click', (e) => {
             if (!contentContainer.contains(e.target)) {
                 closeOverlay();
             }
         });
-
-        // Add event listener for the 'Escape' key to close the overlay
         document.addEventListener('keydown', onEscapePress);
 
         /**
-         * Handles the 'Escape' key press to close the overlay.
-         * @param {KeyboardEvent} e - The keyboard event.
+         * Closes the overlay and restores page scrolling.
          */
-        function onEscapePress(e) {
-            if (e.key === 'Escape') {
-                closeOverlay();
-            }
+        function closeOverlay() {
+            document.getElementById(OVERLAY_ID)?.remove();
+            document.body.style.overflow = '';
+            document.removeEventListener('keydown', onEscapePress);
         }
 
         /**
-         * Closes the summary overlay and re-enables background scrolling.
+         * Handles 'Escape' key press to close the overlay.
+         * @param {KeyboardEvent} e
          */
-        function closeOverlay() {
-            const existingOverlay = document.getElementById(OVERLAY_ID);
-            if (existingOverlay) {
-                existingOverlay.remove();
-                document.body.style.overflow = '';
-                document.removeEventListener('keydown', onEscapePress);
-            }
+        function onEscapePress(e) {
+            if (e.key === 'Escape') closeOverlay();
         }
     }
 
@@ -521,7 +464,6 @@
         const contentDiv = document.getElementById(CONTENT_ID);
         if (contentDiv) {
             contentDiv.innerHTML = `<div id="${CLOSE_BUTTON_ID}">&times;</div>` + content;
-            // Re-attach the close button event listener
             document.getElementById(CLOSE_BUTTON_ID).addEventListener('click', closeOverlay);
         }
 
@@ -529,61 +471,49 @@
          * Closes the summary overlay and re-enables background scrolling.
          */
         function closeOverlay() {
-            const existingOverlay = document.getElementById(OVERLAY_ID);
-            if (existingOverlay) {
-                existingOverlay.remove();
-                document.body.style.overflow = '';
-                document.removeEventListener('keydown', onEscapePress);
-            }
+            document.getElementById(OVERLAY_ID)?.remove();
+            document.body.style.overflow = '';
+            document.removeEventListener('keydown', onEscapePress);
         }
 
         /**
          * Handles the 'Escape' key press to close the overlay.
-         * @param {KeyboardEvent} e - The keyboard event.
+         * @param {KeyboardEvent} e
          */
         function onEscapePress(e) {
-            if (e.key === 'Escape') {
-                closeOverlay();
-            }
+            if (e.key === 'Escape') closeOverlay();
         }
     }
 
     /**
-     * Displays an error notification at the bottom-left corner of the page.
+     * Displays an error notification on the page.
      * @param {string} message - The error message to display.
      */
     function showErrorNotification(message) {
-        // Check if an error notification already exists
         if (document.getElementById(ERROR_ID)) {
             document.getElementById(ERROR_ID).innerText = message;
             return;
         }
 
-        // Create the error notification element
         const errorDiv = document.createElement('div');
         errorDiv.id = ERROR_ID;
         errorDiv.innerText = message;
         document.body.appendChild(errorDiv);
 
-        // Remove the error notification after 4 seconds
-        setTimeout(function() {
-            const existingError = document.getElementById(ERROR_ID);
-            if (existingError) {
-                existingError.remove();
-            }
+        setTimeout(() => {
+            errorDiv.remove();
         }, 4000);
     }
 
     /**
      * Sends the article data to the OpenAI API to generate a summary.
-     * Handles the API response and updates the overlay with the summary or error messages.
+     * Handles the response and updates the overlay accordingly.
      * @param {string} apiKey - The OpenAI API key.
-     * @param {Object} payload - An object containing the title and content of the article.
+     * @param {Object} payload - Contains title and content of the article.
      */
     async function summarizeContent(apiKey, payload) {
         try {
-            // Prepare the API request payload
-            const userLanguage = navigator.language || 'en-US'; // Default to English
+            const userLanguage = navigator.language || 'en-US';
 
             const requestData = {
                 model: 'gpt-4o-mini',
@@ -614,7 +544,6 @@ Adapt the text to be short, concise, and informative.`
                 stream: false
             };
 
-            // Send the API request using GM.xmlHttpRequest
             GM.xmlHttpRequest({
                 method: 'POST',
                 url: API_URL,
@@ -623,58 +552,60 @@ Adapt the text to be short, concise, and informative.`
                     'Authorization': `Bearer ${apiKey}`
                 },
                 data: JSON.stringify(requestData),
-                onload: function(response) {
-                    if (response && response.status === 200) {
-                        try {
-                            const resData = JSON.parse(response.responseText);
-                            if (resData.choices && resData.choices.length > 0) {
-                                const summary = resData.choices[0].message.content;
-
-                                // Replace line breaks with <br> for HTML rendering
-                                const formattedSummary = summary.replace(/\n/g, '<br>');
-
-                                // Update the overlay with the generated summary
-                                updateSummaryOverlay(formattedSummary);
-                            } else {
-                                showErrorNotification('Error: Invalid API response.');
-                                updateSummaryOverlay('<p>Error: Invalid API response.</p>');
-                            }
-                        } catch (parseError) {
-                            showErrorNotification('Error: Failed to parse API response.');
-                            updateSummaryOverlay('<p>Error: Failed to parse API response.</p>');
-                            console.error('Error parsing API response:', parseError);
-                        }
-                    } else if (response && response.status === undefined) {
-                        // Handle cases where response.status is undefined
-                        showErrorNotification('Error: Unexpected API response.');
-                        console.error('API response without status:', response);
-                        updateSummaryOverlay('<p>Error: Unexpected API response.</p>');
-                    } else if (response && response.status === 401) {
-                        // Handle unauthorized access (invalid API key)
-                        showErrorNotification('Error: Invalid API key.');
-                        updateSummaryOverlay('<p>Error: Invalid API key.</p>');
-                    } else {
-                        // Handle other types of errors
-                        showErrorNotification(`Error: Failed to retrieve summary. Status: ${response.status || 'N/A'}`);
-                        updateSummaryOverlay(`<p>Error: Failed to retrieve summary. Status: ${response.status || 'N/A'}</p>`);
-                    }
+                onload: function (response) {
+                    handleApiResponse(response);
                 },
-                onerror: function() {
-                    // Handle network errors
-                    showErrorNotification('Error: Network issue.');
-                    updateSummaryOverlay('<p>Error: Network issue.</p>');
-                },
-                onabort: function() {
-                    // Handle request abortion
-                    showErrorNotification('Request aborted.');
-                    updateSummaryOverlay('<p>Request aborted.</p>');
-                }
+                onerror: () => handleRequestError('Network issue.'),
+                onabort: () => handleRequestError('Request aborted.')
             });
         } catch (error) {
+            console.error('API communication error:', error);
             showErrorNotification('Error: Failed to communicate with the API.');
             updateSummaryOverlay('<p>Error: Failed to communicate with the API.</p>');
-            console.error('API communication error:', error);
         }
+    }
+
+    /**
+     * Handles the API response, updating the overlay or showing errors as needed.
+     * @param {Object} response - The API response object.
+     */
+    function handleApiResponse(response) {
+        if (response.status !== 200) {
+            let errorMessage = `Error: Failed to retrieve summary. Status: ${response.status || 'N/A'}`;
+            if (response.status === 401) {
+                errorMessage = 'Error: Invalid API key.';
+            } else if (response.status === undefined) {
+                errorMessage = 'Error: Unexpected API response.';
+            }
+            showErrorNotification(errorMessage);
+            updateSummaryOverlay(`<p>${errorMessage}</p>`);
+            console.error('API response error:', response);
+            return;
+        }
+
+        try {
+            const resData = JSON.parse(response.responseText);
+            const summary = resData?.choices?.[0]?.message?.content;
+            if (summary) {
+                const formattedSummary = summary.replace(/\n+/g, '<br>');
+                updateSummaryOverlay(formattedSummary);
+            } else {
+                throw new Error('Invalid API response structure.');
+            }
+        } catch (parseError) {
+            console.error('Error parsing API response:', parseError);
+            showErrorNotification('Error: Failed to parse API response.');
+            updateSummaryOverlay('<p>Error: Failed to parse API response.</p>');
+        }
+    }
+
+    /**
+     * Handles request errors by displaying notifications and updating the overlay.
+     * @param {string} message - The error message to display.
+     */
+    function handleRequestError(message) {
+        showErrorNotification(`Error: ${message}`);
+        updateSummaryOverlay(`<p>Error: ${message}</p>`);
     }
 
 })();
