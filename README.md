@@ -1,10 +1,11 @@
 # Summarize with AI
 
-Adds a little button to summarize articles, news, and similar content using the OpenAI API (gpt-4o-mini model). The button only appears on pages detected as articles or news.
+- Adds a little button to summarize articles, news, and similar content.
+- Uses the OpenAI API (gpt-4o-mini model because it is fast and cheap)
+- The button only appears on pages detected as articles or news.
+- Asks for an OpenAI API key if not provided.
 
-> Beware, on the first run the script will ask for an API key, you can get one [here](https://platform.openai.com/account/api-keys)
 
-> The model used is `gpt-4o-mini`, which is a cheap model, but it's not as good as `gpt-4o` , but it's great for most cases.
 
 ## Installation
 
