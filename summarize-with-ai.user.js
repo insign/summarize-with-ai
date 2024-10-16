@@ -12,6 +12,7 @@
 // @grant        GM.getValue
 // @connect      api.openai.com
 // @require      https://cdnjs.cloudflare.com/ajax/libs/readability/0.5.0/Readability.min.js
+// @require      https://cdnjs.cloudflare.com/ajax/libs/readability/0.5.0/Readability-readerable.min.js
 // ==/UserScript==
 
 (function () {
@@ -69,6 +70,8 @@
             const clonedDoc = document.cloneNode(true);
             // Remove unwanted tags to prevent parsing issues
             clonedDoc.querySelectorAll('script, style').forEach(el => el.remove());
+
+            if (!isProbablyReaderable(clonedDoc)) return null;
 
             const reader = new Readability(clonedDoc);
             const article = reader.parse();
