@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Summarize with AI
 // @namespace    https://github.com/insign/summarize-with-ai
-// @version      2024.10.16.2046
+// @version      2024.10.16.2050
 // @description  Adds a button and alt/option + 's' to summarize articles, news, and similar content using the OpenAI API (gpt-4o-mini model). The summary is displayed in an overlay with enhanced styling and a loading animation.
 // @author       Hélio <open@helio.me>
 // @license      WTFPL
@@ -295,9 +295,7 @@
             showElement(BUTTON_ID);
         }
 
-        // Check if 'Alt' or 'Option' key is pressed along with 'S' key
-        const isModifierKey = e.altKey || e.metaKey;
-        if (e.key.toLowerCase() === 's' && isModifierKey) {
+        if (e.altKey && e.code === 'KeyC') {
             e.preventDefault();
             triggerSummarization();
         }
