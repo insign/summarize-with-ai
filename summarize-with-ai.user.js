@@ -13,6 +13,7 @@
 // @connect      api.openai.com
 // @require      https://cdnjs.cloudflare.com/ajax/libs/readability/0.5.0/Readability.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/readability/0.5.0/Readability-readerable.min.js
+
 // ==/UserScript==
 
 (function () {
