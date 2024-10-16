@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Summarize with AI
 // @namespace    https://github.com/insign/summarize-with-ai
-// @version      2024.10.16.1526
+// @version      2024.10.16.1837
 // @description  Adds a button or keyboard shortcut to summarize articles, news, and similar content using the OpenAI API (gpt-4o-mini model). The summary is displayed in an overlay with enhanced styling and a loading animation.
 // @author       Hélio <open@helio.me>
 // @license      WTFPL
@@ -266,7 +266,7 @@
 
     /**
      * Sets up keyboard shortcuts for summarization.
-     * 'S' key triggers summarization unless an input is focused.
+     * 'Alt+S' key combination triggers summarization unless an input is focused.
      */
     function setupKeyboardShortcuts() {
         document.addEventListener('keydown', handleKeyDown);
@@ -280,7 +280,7 @@
     }
 
     /**
-     * Handles keydown events to trigger summarization with 'S' key.
+     * Handles keydown events to trigger summarization with 'Alt+S' key combination.
      * @param {KeyboardEvent} e
      */
     function handleKeyDown(e) {
@@ -291,12 +291,14 @@
             hideElement(BUTTON_ID);
             return;
         }
+        else {
+            showElement(BUTTON_ID);
+        }
 
-        if (e.key.toLowerCase() === 's') {
+        // Check if 'Alt' key is pressed along with 'S' key
+        if (e.key.toLowerCase() === 's' && e.altKey) {
             e.preventDefault();
             triggerSummarization();
-        } else {
-            showElement(BUTTON_ID);
         }
     }
 
@@ -377,11 +379,11 @@
         const newKey = prompt('Please enter your OpenAI API key:', '');
         if (newKey) {
             GM.setValue('openai_api_key', newKey.trim())
-                .then(() => alert('API key successfully updated.'))
-                .catch(error => {
-                    alert('Error updating the API key.');
-                    console.error('API key update error:', error);
-                });
+              .then(() => alert('API key successfully updated.'))
+              .catch(error => {
+                  alert('Error updating the API key.');
+                  console.error('API key update error:', error);
+              });
         }
     }
 
