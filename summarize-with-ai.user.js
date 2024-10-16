@@ -280,7 +280,7 @@
     }
 
     /**
-     * Handles keydown events to trigger summarization with 'Alt+S' key combination.
+     * Handles keydown events to trigger summarization with 'Alt+S' or 'Option+S' key combination.
      * @param {KeyboardEvent} e
      */
     function handleKeyDown(e) {
@@ -290,13 +290,13 @@
         if (isInput) {
             hideElement(BUTTON_ID);
             return;
-        }
-        else {
+        } else {
             showElement(BUTTON_ID);
         }
 
-        // Check if 'Alt' key is pressed along with 'S' key
-        if (e.key.toLowerCase() === 's' && e.altKey) {
+        // Check if 'Alt' or 'Option' key is pressed along with 'S' key
+        const isModifierKey = e.altKey || e.metaKey;
+        if (e.key.toLowerCase() === 's' && isModifierKey) {
             e.preventDefault();
             triggerSummarization();
         }
