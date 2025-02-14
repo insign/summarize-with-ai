@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Summarize with AI (Unified)
 // @namespace    https://github.com/insign/summarize-with-ai
-// @version      2025.02.14.19.42
+// @version      2025.02.14.20.44
 // @description  Single-button AI summarization with model selection dropdown
 // @author       Hélio <open@helio.me>
 // @license      WTFPL
