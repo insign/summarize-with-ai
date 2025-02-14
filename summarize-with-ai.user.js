@@ -29,7 +29,7 @@
   const MODEL_GROUPS = {
     openai: {
       name   : 'OpenAI',
-      models : [ 'gpt-4o-mini' ],
+      models : [ 'gpt-4o-mini', 'o3-mini' ],
       baseUrl: 'https://api.openai.com/v1/chat/completions',
     },
     gemini: {
