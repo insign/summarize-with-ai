@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Summarize with AI (Unified)
 // @namespace    https://github.com/insign/summarize-with-ai
-// @version      2025.02.14.20.44
+// @version      2025.02.16.14.56
 // @description  Single-button AI summarization with model selection dropdown
 // @author       Hélio <open@helio.me>
 // @license      WTFPL
@@ -14,6 +14,8 @@
 // @connect      generativelanguage.googleapis.com
 // @require      https://cdnjs.cloudflare.com/ajax/libs/readability/0.5.0/Readability.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/readability/0.5.0/Readability-readerable.min.js
+// @downloadURL https://update.greasyfork.org/scripts/509192/Summarize%20with%20AI%20%28Unified%29.user.js
+// @updateURL https://update.greasyfork.org/scripts/509192/Summarize%20with%20AI%20%28Unified%29.meta.js
 // ==/UserScript==
 
 (function() {
@@ -27,25 +29,17 @@
   const ERROR_ID        = 'summarize-error'
 
   const MODEL_GROUPS = {
-    openai: {
-      name   : 'OpenAI',
-      models : [ 'gpt-4o-mini', 'o3-mini' ],
-      baseUrl: 'https://api.openai.com/v1/chat/completions',
-    },
-    gemini: {
-      name   : 'Gemini',
-      models : [
-        'gemini-2.0-flash-exp',
-        'gemini-2.0-pro-exp-02-05',
-        'gemini-2.0-flash-thinking-exp-01-21',
-        'learnlm-1.5-pro-experimental',
+    openai   : {
+      name: 'OpenAI', models: [ 'gpt-4o-mini', 'o3-mini' ], baseUrl: 'https://api.openai.com/v1/chat/completions',
+    }, gemini: {
+      name      : 'Gemini', models: [
+        'gemini-2.0-flash-exp', 'gemini-2.0-pro-exp-02-05', 'gemini-2.0-flash-thinking-exp-01-21', 'learnlm-1.5-pro-experimental',
         'gemini-2.0-flash-lite-preview-02-05',
-      ],
-      baseUrl: 'https://generativelanguage.googleapis.com/v1beta/models/',
+      ], baseUrl: 'https://generativelanguage.googleapis.com/v1beta/models/',
     },
   }
 
-  const PROMPT_TEMPLATE = (title, content, lang) => `You are a helpful assistant that provides clear and affirmative explanations of content. 
+  const PROMPT_TEMPLATE = (title, content, lang) => `You are a helpful assistant that provides clear and affirmative explanations of content.
 Generate a concise summary that includes:
 - 2-sentence introduction
 - Bullet points with relevant emojis
@@ -62,11 +56,11 @@ Article Content: ${content}`
 
   function initialize() {
     document.addEventListener('keydown', handleKeyPress)
-    setupFocusListeners()
     articleData = getArticleData()
     if (articleData) {
       addSummarizeButton()
       showElement(BUTTON_ID)
+      setupFocusListeners() // Movido para dentro do bloco condicional
     }
   }
 
@@ -147,9 +141,7 @@ Article Content: ${content}`
   }
 
   async function sendApiRequest(service, apiKey, payload) {
-    const url = service === 'openai'
-      ? MODEL_GROUPS.openai.baseUrl
-      : `${MODEL_GROUPS.gemini.baseUrl}${activeModel}:generateContent?key=${apiKey}`
+    const url = service === 'openai' ? MODEL_GROUPS.openai.baseUrl : `${MODEL_GROUPS.gemini.baseUrl}${activeModel}:generateContent?key=${apiKey}`
     return new Promise((resolve, reject) => {
       GM.xmlHttpRequest({
         method : 'POST',
@@ -168,26 +160,19 @@ Article Content: ${content}`
       throw new Error(`API Error (${response.status}): ${response.statusText}`)
     }
     const data    = JSON.parse(response.responseText)
-    const summary = service === 'openai'
-      ? data.choices[0].message.content
-      : data.candidates[0].content.parts[0].text
+    const summary = service === 'openai' ? data.choices[0].message.content : data.candidates[0].content.parts[0].text
     updateSummaryOverlay(summary.replace(/\n/g, '<br>'))
   }
 
   function buildRequestBody(service, { title, content, lang }) {
     return service === 'openai' ? {
-      model      : activeModel,
-      messages   : [
+      model         : activeModel, messages: [
         {
-          role   : 'system',
-          content: PROMPT_TEMPLATE(title, content, lang),
+          role: 'system', content: PROMPT_TEMPLATE(title, content, lang),
         }, {
-          role   : 'user',
-          content: 'Generate summary',
+          role: 'user', content: 'Generate summary',
         },
-      ],
-      temperature: 0.5,
-      max_tokens : 500,
+      ], temperature: 0.5, max_tokens: 500,
     } : {
       contents: [
         {
@@ -203,15 +188,12 @@ Article Content: ${content}`
 
   function getHeaders(service, apiKey) {
     return service === 'openai' ? {
-      'Content-Type' : 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}`,
     } : { 'Content-Type': 'application/json' }
   }
 
   function getCurrentService() {
-    return Object.keys(MODEL_GROUPS).find(service =>
-      MODEL_GROUPS[service].models.includes(activeModel),
-    )
+    return Object.keys(MODEL_GROUPS).find(service => MODEL_GROUPS[service].models.includes(activeModel))
   }
 
   function toggleDropdown(e) {
@@ -424,9 +406,12 @@ Article Content: ${content}`
   }
 
   function toggleButtonVisibility() {
-    const active                                     = document.activeElement
-    const isInput                                    = active?.matches('input, textarea, select, [contenteditable]')
-    document.getElementById(BUTTON_ID).style.display = isInput ? 'none' : 'block'
+    const button = document.getElementById(BUTTON_ID)
+    if (!button) return // Previne erro em páginas sem botão
+
+    const active         = document.activeElement
+    const isInput        = active?.matches('input, textarea, select, [contenteditable]')
+    button.style.display = isInput ? 'none' : 'block'
   }
 
   initialize()
