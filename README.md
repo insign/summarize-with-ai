@@ -1,4 +1,5 @@
-# Summarize with AI (OpenAI/Gemini)
+# ⚠️ Moved to [Userscripts Collection](https://github.com/insign/userscripts)
+## Summarize with AI (OpenAI/Gemini)
 
 - Adds a little button to summarize articles, news, and similar content.
 - Uses the OpenAI API (gpt-4o-mini model because it is fast and cheap)
